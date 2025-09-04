@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradingView Advanced Chart</title>
+    <style>
+        /* Basic reset and full-page styling */
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent scrollbars on the body */
+            background-color: #131722; /* Match TradingView dark theme background */
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        /* Ensure the container takes full height and width */
+        .tradingview-widget-container {
+            height: 100% !important;
+            width: 100% !important;
+        }
+        /* Ensure the inner widget also respects the container size and takes full height */
+        .tradingview-widget-container__widget {
+            height: 100% !important; /* Changed from calc(100% - 32px) */
+            width: 100% !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- TradingView Widget BEGIN -->
+    <div class="tradingview-widget-container">
+      <div class="tradingview-widget-container__widget"></div>
+      <!-- Removed the tradingview-widget-copyright div -->
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+      {
+        "autosize": true,
+        "symbol": "NASDAQ:AAPL",
+        "interval": "D",
+        "timezone": "Asia/Jakarta",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "hide_side_toolbar": false,
+        "allow_symbol_change": true,
+        "hideideas": true,
+        "show_popup_button": false,
+        "remove_logo": true,
+        "no_referral_id": true,
+        "support_host": "https://www.tradingview.com"
+      }
+      </script>
+    </div>
+    <!-- TradingView Widget END -->
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Central Bank Policy Table</title>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            font-family: 'Source Code Pro', monospace;
+            background-color: #000;
+            color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .table-container {
+            flex: 1;
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000;
+            border-radius: 0;
+            border: 1px solid #222;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .title-bar {
+            background-color: #1a1a1a;
+            color: #fff;
+            padding: 10px 12px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            border-bottom: 1px solid #222;
+        }
+
+        .table-wrapper {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #000;
+            font-size: 12px;
+        }
+
+        th, td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #222;
+            text-align: left;
+            color: #ddd;
+            white-space: nowrap;
+        }
+
+        th {
+            background-color: #111;
+            color: #eee;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        td {
+            color: #ddd;
+        }
+        
+        td.number-positive {
+            color: #00e676;
+        }
+        td.number-negative {
+            color: #ff5252;
+        }
+        td.text-hold {
+            color: #fdd835;
+        }
+
+
+        .indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        /* Global Minimalist macOS–Style Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        /* For Firefox */
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+    </style>
+</head>
+<body>
+
+<div class="table-container">
+    <div class="title-bar">
+        <span>Central Bank Policy Table</span>
+        </div>
+
+    <div class="table-wrapper">
+        <table id="policy-table">
+            <thead>
+            <tr>
+                <th>Country</th>
+                <th>Current Rate</th>
+                <th>Implied Rate</th>
+                <th>Expected Move</th>
+                <th>Implied Moves</th>
+            </tr>
+            </thead>
+            <tbody>
+                <!-- Data akan diisi oleh JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQYiJV_oUwE0qR24XL8RsaCtR2KEvfkPgxZ_LA9GsVCIqNINbRqG_1Vi4sWpG1MzkSHA/exec';
+
+    async function populateTable() {
+        try {
+            const response = await fetch(SCRIPT_URL);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const jsonData = await response.json();
+            const policyData = jsonData.CBPT;
+
+            const tableBody = document.getElementById('policy-table').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = ''; 
+
+            policyData.forEach(data => {
+                const row = tableBody.insertRow();
+                
+                let indicatorColor = '#fdd835'; // Default: Yellow for Hold
+                if (data['Expected Move'].toLowerCase() === 'cut') {
+                    indicatorColor = '#ff5252'; // Red for Cut
+                } else if (data['Expected Move'].toLowerCase() === 'hike') {
+                    indicatorColor = '#00e676'; // Green for Hike
+                }
+
+                const cellCountry = row.insertCell();
+                cellCountry.innerHTML = `<span class="indicator" style="background-color:${indicatorColor};"></span>${data.Country}`;
+
+                const cellCurrentRate = row.insertCell();
+                cellCurrentRate.textContent = data['Current Rate'];
+
+                const cellImpliedRate = row.insertCell();
+                // PERBAIKAN: Menggunakan key '1y Yield' dari JSON agar sesuai dengan data dari Google Sheet
+                cellImpliedRate.textContent = data['1y Yield']; 
+
+                const cellExpectedMove = row.insertCell();
+                cellExpectedMove.textContent = data['Expected Move'];
+                if (data['Expected Move'].toLowerCase() === 'cut') {
+                    cellExpectedMove.className = 'number-negative';
+                } else if (data['Expected Move'].toLowerCase() === 'hike') {
+                    cellExpectedMove.className = 'number-positive';
+                } else {
+                    cellExpectedMove.className = 'text-hold';
+                }
+
+                const cellImpliedMoves = row.insertCell();
+                cellImpliedMoves.textContent = data['Implied Moves'];
+                if (data['Implied Moves'].includes('-')) {
+                    cellImpliedMoves.className = 'number-negative';
+                } else if (data['Implied Moves'].includes('+') || (parseFloat(data['Implied Moves']) > 0 && !data['Implied Moves'].includes('-'))) {
+                    cellImpliedMoves.className = 'number-positive';
+                }
+            });
+
+        } catch (error) {
+            console.error("Gagal mengambil atau memproses data:", error);
+            const tableBody = document.getElementById('policy-table').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: #ff5252;">Gagal memuat data. Periksa konsol untuk detail.</td></tr>`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', populateTable);
+</script>
+
+</body>
+</html>

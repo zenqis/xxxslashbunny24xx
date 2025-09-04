@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Catalyst Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Memuat pustaka Chart.js (untuk Doughnut) dan D3.js (untuk Bubble) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .widget-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            background-color: #000;
+            border-top: 1px solid #222;
+            overflow: hidden;
+            min-height: 0;
+            margin: 0;
+            border-radius: 0;
+        }
+
+        .widget-title-bar {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            background-color: #1a1a1a;
+            color: #fff;
+            border-bottom: 1px solid #222;
+            padding: 0 16px;
+            flex-shrink: 0;
+            box-sizing: border-box;
+        }
+
+        .widget-title-text {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .last-update-text {
+            font-size: 12px;
+            color: #999;
+            margin-left: auto;
+            margin-right: 20px;
+        }
+
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+        }
+
+        .tab-button {
+            background-color: #2a2a2a;
+            border: 1px solid #333;
+            color: #ccc;
+            padding: 5px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: 'Source Code Pro', monospace;
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .tab-button.active {
+            background-color: #0d0d0d;
+            color: #ff8000;
+            border-color: #222;
+            border-bottom-color: #0d0d0d;
+            position: relative;
+            top: 1px;
+        }
+
+        .canvas-wrapper {
+            flex: 1;
+            position: relative;
+            display: flex;
+            min-height: 0;
+            background-color: #0d0d0d;
+            padding: 16px;
+            overflow: hidden;
+        }
+        
+        .tab-content {
+            display: none;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #table-container {
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            height: 100%;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #222;
+            vertical-align: top; /* --- PERUBAHAN --- Agar konten selaras di atas */
+        }
+
+        thead th {
+            background-color: #1a1a1a;
+            color: #ff8000;
+            font-size: 12px;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        
+        thead tr {
+            height: 40px;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #111;
+        }
+
+        /* --- PERUBAHAN --- Menyesuaikan lebar kolom untuk kolom baru */
+        td:nth-child(1) { font-weight: bold; color: #eee; width: 25%; }
+        td:nth-child(2) { color: #bbb; width: 40%; }
+        td:nth-child(3) { color: #3498db; font-weight: bold; text-align: right; width: 10%; }
+        td:nth-child(4) { color: #a9a9a9; width: 25%; }
+
+        .loader-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            color: #ff8000;
+        }
+        
+        .d3-tooltip {
+            position: absolute;
+            text-align: left;
+            padding: 10px;
+            font-size: 12px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            max-width: 300px;
+            z-index: 10;
+        }
+        .d3-tooltip strong {
+            color: #ff8000;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .d3-tooltip .label {
+            color: #ccc;
+            font-weight: bold;
+        }
+        
+        .bubble-circle {
+            transition: all 0.3s ease;
+        }
+
+        .bubble-circle:hover {
+            stroke: #fff;
+            stroke-width: 1.5px;
+            filter: drop-shadow(0 0 8px rgba(255, 128, 0, 0.7));
+        }
+
+        #table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        #table-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #table-container::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+
+        #table-container::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        #table-container {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget-container">
+        <div class="widget-title-bar">
+            <div class="widget-title-text">Catalyst Tracker</div>
+            <div class="last-update-text" id="last-update">Loading...</div>
+            <div class="tab-nav">
+                <button class="tab-button active" data-tab="table">Table</button>
+                <button class="tab-button" data-tab="doughnut">Doughnut</button>
+                <button class="tab-button" data-tab="bubble">Bubble</button>
+            </div>
+        </div>
+        <div class="canvas-wrapper">
+            <div class="tab-content active" id="table-content">
+                 <div class="loader-container" id="table-loader">
+                    <span>Fetching latest analysis...</span>
+                </div>
+            </div>
+            <div class="tab-content" id="doughnut-content">
+                <canvas id="doughnut-chart"></canvas>
+            </div>
+            <div class="tab-content" id="bubble-content">
+                <svg id="bubble-chart" width="100%" height="100%"></svg>
+            </div>
+        </div>
+    </div>
+    <div class="d3-tooltip" id="tooltip"></div>
+
+    <script>
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby7p3UDgd5FiMMdo-HkvrHS1em_kd3DCX6l-H5yApEfR9PGN6yTZTK23sWS9f5LUdM/exec';
+        let cachedData = null;
+        let doughnutChartInstance = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setupTabs();
+            fetchData();
+        });
+
+        function setupTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabName = button.dataset.tab;
+                    
+                    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+
+                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                    document.getElementById(`${tabName}-content`).classList.add('active');
+                    
+                    renderActiveTab();
+                });
+            });
+        }
+
+        async function fetchData() {
+            const lastUpdateElement = document.getElementById('last-update');
+            const tableLoader = document.getElementById('table-loader');
+            tableLoader.style.display = 'flex';
+
+            try {
+                const response = await fetch(WEB_APP_URL);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    cachedData = result.data;
+                    const updateDate = new Date(result.lastUpdate);
+                    lastUpdateElement.textContent = `Last Update: ${updateDate.toLocaleString()}`;
+                    renderActiveTab();
+                } else {
+                    throw new Error(result.message || 'Failed to fetch data.');
+                }
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('table-content').innerHTML = `<div class="loader-container"><span>Error: ${error.message}</span></div>`;
+                lastUpdateElement.textContent = 'Update Failed';
+            }
+        }
+
+        function renderActiveTab() {
+            if (!cachedData) return;
+            
+            if (doughnutChartInstance) {
+                doughnutChartInstance.destroy();
+                doughnutChartInstance = null;
+            }
+            d3.select("#bubble-chart").selectAll("*").remove();
+
+            const activeTab = document.querySelector('.tab-button.active').dataset.tab;
+            if (activeTab === 'table') {
+                displayTable(cachedData);
+            } else if (activeTab === 'doughnut') {
+                displayDoughnutChart(cachedData);
+            } else if (activeTab === 'bubble') {
+                displayBubbleChart(cachedData);
+            }
+        }
+
+        function displayTable(data) {
+            const container = document.getElementById('table-content');
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="loader-container"><span>No data available.</span></div>';
+                return;
+            }
+            // --- PERUBAHAN --- Menambahkan kolom "Impacted Instruments" ke header
+            let tableHTML = `<div id="table-container"><table><thead><tr><th>Catalyst</th><th>Context</th><th>Dominance</th><th>Impacted Instruments</th></tr></thead><tbody>`;
+            data.forEach(item => {
+                // --- PERUBAHAN --- Menambahkan sel data untuk "impactedInstrument"
+                tableHTML += `<tr>
+                    <td>${item.name}</td>
+                    <td>${item.context}</td>
+                    <td>${(item.percentage * 100).toFixed(2)}%</td>
+                    <td>${item.impactedInstrument || 'N/A'}</td>
+                </tr>`;
+            });
+            tableHTML += `</tbody></table></div>`;
+            container.innerHTML = tableHTML;
+        }
+
+        function displayDoughnutChart(data) {
+            const ctx = document.getElementById('doughnut-chart').getContext('2d');
+            const modernPalette = ['#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f', '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab'];
+            const labels = data.map(item => item.name);
+            const percentages = data.map(item => item.percentage * 100);
+            
+            doughnutChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Dominance',
+                        data: percentages,
+                        backgroundColor: modernPalette,
+                        borderColor: '#0d0d0d',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#f0f0f0', font: { family: "'Source Code Pro', monospace" } }
+                        },
+                        // --- PERUBAHAN --- Memperbarui tooltip untuk menampilkan data baru
+                        tooltip: {
+                            bodyFont: { family: "'Source Code Pro', monospace" },
+                            titleFont: { family: "'Source Code Pro', monospace" },
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${context.raw.toFixed(2)}%`;
+                                },
+                                afterLabel: function(context) {
+                                    const dataItem = data[context.dataIndex];
+                                    if (dataItem && dataItem.impactedInstrument) {
+                                        return `\nImpact: ${dataItem.impactedInstrument}`;
+                                    }
+                                    return '';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function displayBubbleChart(data) {
+            const svg = d3.select("#bubble-chart");
+            const width = parseInt(svg.style("width"));
+            const height = parseInt(svg.style("height"));
+            const tooltip = d3.select("#tooltip");
+            
+            const modernPalette = ['#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f', '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab'];
+            const colorScale = d3.scaleOrdinal(modernPalette);
+
+            const dataset = {
+                // --- PERUBAHAN --- Memastikan data baru tersedia untuk bubble
+                children: data.map(d => ({
+                    name: d.name,
+                    context: d.context,
+                    value: d.percentage,
+                    impactedInstrument: d.impactedInstrument 
+                }))
+            };
+
+            const pack = d3.pack()
+                .size([width, height])
+                .padding(8);
+
+            const root = d3.hierarchy(dataset)
+                .sum(d => d.value);
+
+            const nodes = pack(root).leaves();
+
+            const node = svg.selectAll("g")
+                .data(nodes)
+                .enter().append("g")
+                .attr("transform", d => `translate(${d.x},${d.y})`)
+                .style("cursor", "pointer");
+
+            node.append("circle")
+                .attr("class", "bubble-circle")
+                .attr("r", d => d.r)
+                .style("fill", d => colorScale(d.data.name))
+                .on("mouseover", (event, d) => {
+                    tooltip.transition().duration(200).style("opacity", .95);
+                    // --- PERUBAHAN --- Memperbarui tooltip untuk menampilkan data baru
+                    tooltip.html(`<strong>${d.data.name}</strong>
+                                <span class="label">Dominance:</span> ${(d.data.value * 100).toFixed(2)}%<br>
+                                <span class="label">Context:</span> ${d.data.context}<br>
+                                <span class="label">Impact:</span> ${d.data.impactedInstrument}`)
+                        .style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                });
+
+            node.append("text")
+                .attr("dy", ".3em")
+                .style("text-anchor", "middle")
+                .style("font-size", d => Math.max(8, d.r / 8) + "px")
+                .style("fill", "#fff")
+                .style("pointer-events", "none")
+                .text(d => {
+                    const name = d.data.name;
+                    const r = d.r;
+                    // Perkiraan kasar lebar teks untuk pemotongan
+                    const textWidth = name.length * (r / 8) * 0.6; 
+                    return textWidth < r * 1.9 ? name : name.substring(0, Math.floor(name.length * r * 1.9 / textWidth) - 3) + '...';
+                });
+        }
+    </script>
+
+</body>
+</html>

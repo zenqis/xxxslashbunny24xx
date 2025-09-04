@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compounding Calculator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Source Code Pro', monospace; background-color: #000; color: #f0f0f0; margin: 0; padding: 0; overflow: hidden; }
+        .table-container { width: 100%; height: 100vh; padding: 0; box-sizing: border-box; background-color: #000; border-radius: 0; display: flex; flex-direction: column; overflow: hidden; }
+        .title-bar { background-color: #1a1a1a; color: #fff; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; border-bottom: 1px solid #222; }
+        .table-wrapper { overflow-y: auto; flex-grow: 1; padding: 0 15px; }
+        table { width: 100%; border-collapse: collapse; background-color: #000; font-size: 14px; }
+        th, td { padding: 12px 0; border-bottom: 1px solid #222; text-align: left; color: #ddd; vertical-align: middle; }
+        th { background-color: #111; color: #eee; padding-left: 15px; }
+        td:first-child { width: 45%; }
+        input, select { background-color: #111; color: #f0f0f0; border: 1px solid #333; padding: 10px 14px; width: 100%; box-sizing: border-box; border-radius: 0; font-family: 'Source Code Pro', monospace; font-size: 14px; }
+        input:focus, select:focus { outline: none; border-color: #ddd; }
+        button { width: 100%; padding: 14px; background-color: #111; color: #eee; border: 1px solid #333; font-family: 'Source Code Pro', monospace; font-size: 16px; font-weight: 600; cursor: pointer; text-align: center; margin-top: 10px; }
+        button:hover { background-color: #222; color: #fff; }
+        .result-section { display: none; padding-top: 20px; }
+        .result-section.show { display: block; }
+        .result-value { font-weight: 600; color: #fff; }
+        .roi-positive { color: #00ff7f; }
+        .roi-negative { color: #ff4136; }
+        #chart-container, #history-table-container { margin-top: 25px; padding: 10px; background-color: #0a0a0a; border: 1px solid #222; }
+        #history-table-container h3 { padding: 10px 0; margin: 0; font-size: 16px; border-bottom: 1px solid #222; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.2); }
+        html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+    </style>
+</head>
+<body>
+
+    <div class="table-container">
+        <div class="title-bar">
+            <span>Compounding Calculator</span>
+        </div>
+        <div class="table-wrapper">
+            <form id="compounding-form">
+                <table>
+                    <tbody>
+                        <tr><td><label for="initial-capital">Initial Capital</label></td><td><input type="text" inputmode="decimal" id="initial-capital" value="10,000"></td></tr>
+                        <tr><td><label id="duration-label" for="investment-duration">Investment Duration</label></td><td><input type="text" inputmode="decimal" id="investment-duration" value="24"></td></tr>
+                        <tr><td><label id="contribution-label" for="additional-contribution">Additional Contribution</label></td><td><input type="text" inputmode="decimal" id="additional-contribution" value="500"></td></tr>
+                        <tr><td><label for="interest-rate">Expected Return</label></td><td><input type="text" inputmode="decimal" id="interest-rate" value="12"></td></tr>
+                        <tr><td><label for="rate-type">Return Type</label></td><td><select id="rate-type"><option value="yearly">Annual</option><option value="monthly" selected>Monthly</option></select></td></tr>
+                        <tr><td><label for="interest-type">Interest Type</label></td><td><select id="interest-type"><option value="compounding" selected>Compounding</option><option value="flat">Flat</option></select></td></tr>
+                        <tr><td><label for="compounding-frequency">Compounding Frequency</label></td><td><select id="compounding-frequency"><option value="1">Annually</option><option value="2">Semi-Annually</option><option value="4">Quarterly</option><option value="12" selected>Monthly</option><option value="365">Daily</option></select></td></tr>
+                    </tbody>
+                </table>
+                <button type="submit">CALCULATE</button>
+            </form>
+            <div id="result-section" class="result-section">
+                <table><tbody>
+                    <tr><td>Final Balance</td><td class="result-value" id="final-balance"></td></tr>
+                    <tr><td>Total Principal</td><td class="result-value" id="total-capital"></td></tr>
+                    <tr><td>Total Profit</td><td class="result-value" id="total-profit"></td></tr>
+                    <tr><td>Return on Investment (ROI)</td><td class="result-value" id="roi-result"></td></tr>
+                </tbody></table>
+                <div id="chart-container"><canvas id="growthChart"></canvas></div>
+                <div id="history-table-container"><h3>Growth History</h3><div style="max-height: 400px; overflow-y: auto;"><table id="history-table"><thead><tr><th>Period</th><th>Opening Balance</th><th>Contribution</th><th>Profit</th><th>Closing Balance</th></tr></thead><tbody></tbody></table></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let growthChartInstance = null;
+
+            const numberFormatter = (num) => {
+                if (isNaN(num)) return '';
+                return parseFloat(num).toLocaleString('en-US');
+            };
+
+            const getNumericValue = (elementId) => {
+                const value = document.getElementById(elementId).value;
+                return parseFloat(value.replace(/,/g, '')) || 0;
+            };
+
+            function formatInputAsCurrency(e) {
+                let input = e.target;
+                let originalValue = input.value;
+                let cursorPosition = input.selectionStart;
+                let rawValue = originalValue.replace(/[^0-9.]/g, '');
+                const parts = rawValue.split('.');
+                if (parts.length > 2) {
+                    rawValue = parts[0] + '.' + parts.slice(1).join('');
+                }
+                let [integerPart, decimalPart] = rawValue.split('.');
+                let formattedInteger = parseInt(integerPart, 10).toLocaleString('en-US');
+                if (isNaN(parseInt(integerPart, 10))) {
+                    formattedInteger = '';
+                }
+                let formattedValue = formattedInteger;
+                if (decimalPart !== undefined) {
+                    formattedValue += '.' + decimalPart;
+                }
+                input.value = formattedValue;
+                let newCursorPosition = cursorPosition + (formattedValue.length - originalValue.length);
+                input.setSelectionRange(newCursorPosition, newCursorPosition);
+            }
+
+            document.querySelectorAll('input[inputmode="decimal"]').forEach(input => {
+                input.addEventListener('input', formatInputAsCurrency);
+            });
+
+            const basicForm = document.getElementById('compounding-form');
+            const rateTypeSelect = document.getElementById('rate-type');
+            const durationLabel = document.getElementById('duration-label');
+            const contributionLabel = document.getElementById('contribution-label');
+
+            function updateBasicLabels() {
+                const rateType = rateTypeSelect.value;
+                durationLabel.textContent = (rateType === 'yearly') ? 'Investment Duration (Years)' : 'Investment Duration (Months)';
+                contributionLabel.textContent = (rateType === 'yearly') ? 'Additional Contribution (per Year)' : 'Additional Contribution (per Month)';
+            }
+            rateTypeSelect.addEventListener('change', updateBasicLabels);
+            updateBasicLabels();
+
+            basicForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const params = getBasicParams();
+                if (params === null) return;
+                const { finalBalance, totalCapital, totalProfit, roi, chartLabels, chartData, historyData } = calculateBasicCompounding(params);
+                
+                document.getElementById('final-balance').textContent = numberFormatter(finalBalance.toFixed(0));
+                document.getElementById('total-capital').textContent = numberFormatter(totalCapital.toFixed(0));
+                document.getElementById('total-profit').textContent = numberFormatter(totalProfit.toFixed(0));
+                const roiResultEl = document.getElementById('roi-result');
+                roiResultEl.textContent = roi.toFixed(2) + '%';
+                roiResultEl.className = 'result-value ' + (roi >= 0 ? 'roi-positive' : 'roi-negative');
+
+                renderLineChart(growthChartInstance, 'growthChart', {labels: chartLabels, datasets: [{ label: 'Balance Growth', data: chartData, borderColor: '#ff8c00', backgroundColor: 'rgba(255, 140, 0, 0.1)', fill: true, tension: 0.1 }]}, (val) => val.toLocaleString('en-US'));
+                renderHistoryTable(historyData, numberFormatter);
+                document.getElementById('result-section').classList.add('show');
+            });
+
+            function getBasicParams() {
+                const initialCapital = getNumericValue('initial-capital');
+                const investmentDuration = getNumericValue('investment-duration');
+                const additionalContribution = getNumericValue('additional-contribution');
+                const interestRate = getNumericValue('interest-rate') / 100;
+                const rateType = document.getElementById('rate-type').value;
+                const interestType = document.getElementById('interest-type').value;
+                const compoundsPerYear = parseInt(document.getElementById('compounding-frequency').value);
+                if ([initialCapital, investmentDuration, additionalContribution, interestRate].some(isNaN)) {
+                    alert("ERROR: Please fill out all fields."); return null;
+                }
+                return { initialCapital, investmentDuration, additionalContribution, interestRate, rateType, interestType, compoundsPerYear };
+            }
+
+            function calculateBasicCompounding(params) {
+                const { initialCapital, investmentDuration, additionalContribution, interestRate, rateType, interestType, compoundsPerYear } = params;
+                const totalMonths = (rateType === 'yearly') ? investmentDuration * 12 : investmentDuration;
+                const monthlyContribution = (rateType === 'yearly') ? additionalContribution / 12 : additionalContribution;
+                const annualRate = (rateType === 'monthly') ? interestRate * 12 : interestRate;
+                const ratePerPeriod = annualRate / compoundsPerYear;
+                const totalPeriods = (totalMonths / 12) * compoundsPerYear;
+                const contributionPerPeriod = monthlyContribution * (12 / compoundsPerYear);
+
+                let currentBalance = initialCapital;
+                let totalPrincipal = initialCapital;
+                const chartLabels = ['Start'];
+                const chartData = [initialCapital];
+                const historyData = [];
+
+                for (let i = 1; i <= totalPeriods; i++) {
+                    const openingBalance = currentBalance;
+                    currentBalance += contributionPerPeriod;
+                    totalPrincipal += contributionPerPeriod;
+                    
+                    const baseForProfit = (interestType === 'compounding') ? openingBalance + contributionPerPeriod : totalPrincipal;
+                    const profitThisPeriod = baseForProfit * ratePerPeriod;
+                    currentBalance += profitThisPeriod;
+
+                    historyData.push({ period: i, opening: openingBalance, contribution: contributionPerPeriod, profit: profitThisPeriod, closing: currentBalance });
+                    chartLabels.push(`P-${i}`);
+                    chartData.push(currentBalance);
+                }
+                const totalCapitalFinal = initialCapital + (monthlyContribution * totalMonths);
+                const totalProfit = currentBalance - totalCapitalFinal;
+                const roi = totalCapitalFinal > 0 ? (totalProfit / totalCapitalFinal) * 100 : 0;
+                return { finalBalance: currentBalance, totalCapital: totalCapitalFinal, totalProfit, roi, chartLabels, chartData, historyData };
+            }
+
+            function renderLineChart(instance, canvasId, chartData, yCallback) {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                if (instance) { instance.destroy(); }
+                const newInstance = new Chart(ctx, {
+                    type: 'line', data: chartData,
+                    options: { responsive: true, maintainAspectRatio: true, scales: { y: { ticks: { color: '#ddd', callback: yCallback }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }, x: { ticks: { color: '#ddd' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } } }, plugins: { legend: { labels: { color: '#f0f0f0' } } } }
+                });
+                if(canvasId === 'growthChart') growthChartInstance = newInstance;
+            }
+
+            function renderHistoryTable(history, formatter) {
+                const tableBody = document.querySelector("#history-table tbody");
+                tableBody.innerHTML = '';
+                history.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${row.period}</td><td>${formatter(row.opening.toFixed(0))}</td><td>${formatter(row.contribution.toFixed(0))}</td><td>${formatter(row.profit.toFixed(0))}</td><td>${formatter(row.closing.toFixed(0))}</td>`;
+                    tableBody.appendChild(tr);
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>

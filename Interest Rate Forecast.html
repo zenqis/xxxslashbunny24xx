@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Interest Rate Forecast Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace; 
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chart-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1; 
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000; 
+            border: 1px solid #222; 
+            border-radius: 0; 
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .chart-title-bar {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start; 
+            background-color: #1a1a1a; 
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            padding-left: 12px;
+            flex-shrink: 0; 
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1; 
+            padding: 16px;
+            gap: 15px; 
+            box-sizing: border-box;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .controls-wrapper {
+            display: flex;
+            justify-content: flex-start; 
+            align-items: center;
+            padding-bottom: 10px; 
+            flex-shrink: 0; 
+        }
+
+        .controls-wrapper label {
+            margin-right: 10px;
+            font-size: 12px;
+            color: #ccc; 
+        }
+
+        .controls-wrapper select {
+            background-color: #1a1a1a; 
+            border: 1px solid #333;
+            border-radius: 5px;
+            color: #eee; 
+            padding: 6px 10px; 
+            font-size: 12px;
+            font-family: 'Source Code Pro', monospace; 
+            cursor: pointer;
+            outline: none; 
+        }
+        
+        .controls-wrapper select:hover {
+            border-color: #ff8000; 
+        }
+
+        .canvas-wrapper {
+            flex: 1; 
+            position: relative; 
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        canvas#myForecastChart {
+            max-width: 100%;
+            max-height: 100%;
+            display: block; 
+        }
+    </style>
+</head>
+<body>
+<div class="chart-container">
+    <div class="chart-title-bar">Interest Rate Forecast</div>
+    <div class="content-wrapper">
+        <div class="controls-wrapper">
+            <label for="forecast-select">Select Central Bank:</label>
+            <select id="forecast-select" onchange="updateChart(this.value)"></select>
+        </div>
+        <div class="canvas-wrapper">
+            <canvas id="myForecastChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQYiJV_oUwE0qR24XL8RsaCtR2KEvfkPgxZ_LA9GsVCIqNINbRqG_1Vi4sWpG1MzkSHA/exec';
+    const ctxForecast = document.getElementById('myForecastChart').getContext('2d'); 
+    const forecastSelect = document.getElementById('forecast-select'); 
+    
+    let myForecastChartInstance;
+    let processedForecastData = {}; // Untuk menyimpan data yang sudah diformat
+
+    const fullBankNames = {
+        FED: "US (Fed)", ECB: "EU (ECB)", BOJ: "Japan (BoJ)", BOE: "UK (BoE)", 
+        BOC: "Canada (BoC)", RBA: "Australia (RBA)", SNB: "Switzerland (SNB)"
+    };
+
+    /**
+     * Mengambil dan memproses data dari Google Script.
+     */
+    async function initializeChart() {
+        try {
+            const response = await fetch(SCRIPT_URL);
+            if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
+            const jsonData = await response.json();
+            const rawForecastData = jsonData.IRFC;
+
+            if (!rawForecastData || Object.keys(rawForecastData).length === 0) {
+                throw new Error("IRFC data is missing or empty in the JSON response.");
+            }
+
+            // Proses data mentah menjadi format yang dibutuhkan Chart.js
+            let labels = [];
+            let isFirst = true;
+            for (const bankKey in rawForecastData) {
+                const bankData = rawForecastData[bankKey];
+                const dataPoints = [];
+                const currentLabels = Object.keys(bankData);
+
+                if (isFirst) {
+                    labels = currentLabels; // Gunakan label dari bank pertama sebagai acuan
+                    isFirst = false;
+                }
+                
+                // Ambil nilai dan ubah dari string "5.50%" menjadi angka 5.50
+                for (const period of labels) {
+                    const valueStr = bankData[period] || '0';
+                    dataPoints.push(parseFloat(valueStr.replace('%', '')));
+                }
+
+                processedForecastData[bankKey] = {
+                    name: fullBankNames[bankKey] || bankKey,
+                    data: dataPoints
+                };
+            }
+            
+            // Isi dropdown
+            forecastSelect.innerHTML = '';
+            Object.keys(processedForecastData).forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = processedForecastData[key].name;
+                forecastSelect.appendChild(option);
+            });
+
+            // Buat chart dengan data pertama
+            const initialKey = Object.keys(processedForecastData)[0];
+            createChart(initialKey, labels);
+
+        } catch (error) {
+            console.error("Failed to initialize chart:", error);
+            const canvasWrapper = document.querySelector('.canvas-wrapper');
+            canvasWrapper.innerHTML = `<p style="color: #ff5252; text-align: center;">Failed to load chart data. ${error.message}</p>`;
+        }
+    }
+    
+    /**
+     * Membuat atau menginisialisasi chart.
+     * @param {string} initialKey - Kunci bank awal yang akan ditampilkan.
+     * @param {string[]} labels - Label untuk sumbu X.
+     */
+    function createChart(initialKey, labels) {
+        const initialData = processedForecastData[initialKey];
+
+        const config = { 
+            // PERUBAHAN: Mengganti tipe chart dari 'bar' ke 'line'
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: `${initialData.name} Forecast`,
+                    data: initialData.data,
+                    // PERUBAHAN: Menyesuaikan style untuk line chart
+                    backgroundColor: 'rgba(255, 128, 0, 0.2)', // Area di bawah garis
+                    borderColor: '#ff8000', // Warna garis
+                    pointBackgroundColor: '#ff8000', // Warna titik
+                    pointBorderColor: '#fff', // Border untuk titik
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#ff8000',
+                    fill: true, // Mengisi area di bawah garis
+                    borderWidth: 2,
+                    tension: 0.1 // Membuat garis sedikit melengkung
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, 
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Forecast Period', color: '#ccc' },
+                        grid: { color: '#2a2a2a' }, // Menampilkan grid untuk line chart agar lebih mudah dibaca
+                        ticks: { color: '#e1e1e1', autoSkip: false, maxRotation: 0, minRotation: 0 }
+                    },
+                    y: {
+                        title: { display: true, text: 'Interest Rate (%)', color: '#ccc' },
+                        grid: { color: '#2a2a2a' },
+                        ticks: {
+                            color: '#e1e1e1',
+                            callback: value => value.toFixed(2) + '%'
+                        },
+                        beginAtZero: false
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { color: '#f0f0f0', font: { size: 12 } }
+                    },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                        callbacks: {
+                            label: context => `${context.dataset.label || ''}: ${context.parsed.y.toFixed(2)}%`
+                        }
+                    }
+                }
+            }
+        };
+        myForecastChartInstance = new Chart(ctxForecast, config); 
+    }
+
+    /**
+     * Memperbarui chart ketika pilihan di dropdown berubah.
+     * @param {string} bankKey - Kunci bank yang dipilih.
+     */
+    window.updateChart = function(bankKey) { 
+        if (processedForecastData[bankKey] && myForecastChartInstance) {
+            myForecastChartInstance.data.datasets[0].data = processedForecastData[bankKey].data;
+            myForecastChartInstance.data.datasets[0].label = `${processedForecastData[bankKey].name} Forecast`; 
+            myForecastChartInstance.update();
+        }
+    }
+
+    // Panggil fungsi inisialisasi saat halaman dimuat
+    document.addEventListener('DOMContentLoaded', initializeChart);
+
+</script>
+</body>
+</html>

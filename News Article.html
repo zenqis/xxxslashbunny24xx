@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Article Widget</title>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: 'Source Code Pro', monospace;
+            background-color: #000;
+            color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .table-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden; 
+        }
+
+        .title-bar {
+            background-color: #1a1a1a;
+            color: #fff;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: Bold;
+            text-align: left;
+            border-radius: 0;
+            padding-left: 12px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0; 
+        }
+
+        .filter-container {
+            background-color: #000; 
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            gap: 10px; /* Adjusted gap for more space */
+            border-bottom: 1px solid #222; 
+            flex-shrink: 0;
+        }
+
+        .filter-group { 
+            display: flex;
+            align-items: center;
+            gap: 8px; /* Gap within filter group */
+        }
+        
+        .layout-switcher {
+            display: flex;
+            gap: 8px;
+        }
+
+        .layout-button {
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            color: #ccc;
+            padding: 6px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 13px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .layout-button:hover {
+            background-color: #3a3a3a;
+            color: #fff;
+        }
+        .layout-button.active {
+            background-color: #707070; /* Green to indicate active */
+            color: white;
+            border-color: #9e9e9e;
+        }
+
+        .filter-label {
+            font-size: 14px;
+            color: #ddd;
+        }
+
+        .filter-select-css, 
+        #search-input {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            padding: 6px 8px; 
+            color: #fff;
+            border-radius: 5px;
+            font-family: 'Source Code Pro', monospace; 
+            font-size: 13px; 
+        }
+        
+        #search-input {
+            margin-left: 0; 
+        }
+
+        .news-container { /* Default is list layout */
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .news-container.grid-layout {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px; /* Gap between grid items */
+            padding: 15px; /* Slightly more padding for grid */
+        }
+
+        .news-item {
+            background-color: #1a1a1a;
+            padding: 12px; 
+            border-radius: 5px;
+            border: 1px solid #222;
+            display: flex; 
+            flex-direction: column; 
+            transition: transform 0.2s ease-in-out;
+        }
+        
+        .news-container.grid-layout .news-item {
+            min-height: 200px; 
+            justify-content: space-between; /* Pushes meta to bottom */
+        }
+
+        .news-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #eee;
+            margin-bottom: 8px; 
+            cursor: pointer;
+        }
+
+        .news-title:hover {
+            text-decoration: underline;
+            color: #fff;
+        }
+
+        .news-meta {
+            font-size: 11px; 
+            color: #aaa;
+            margin-top: 10px; 
+            padding-top: 8px; 
+            border-top: 1px solid #2a2a2a; 
+            display: flex;
+            justify-content: space-between; 
+            align-items: center;
+            flex-wrap: wrap; /* Allow meta items to wrap if space is tight */
+            gap: 8px; /* Gap between date, category and source in meta */
+        }
+        
+        /* MODIFICATION: Added style for Category Tag */
+        .news-item-category-display,
+        .news-item-source-display { 
+            font-size: 10px;
+            color: #fff; 
+            padding: 2px 5px;
+            border-radius: 3px;
+            white-space: nowrap; /* Prevent wrapping within the tag */
+        }
+
+        .news-item-category-display {
+            background-color: #00509e; /* Blue for category */
+        }
+        .news-item-source-display { 
+            background-color: #333; /* Original color for source */
+        }
+        .meta-tags-container { /* New container for category and source tags */
+            display: flex;
+            gap: 5px; /* Space between category and source tags */
+            flex-wrap: nowrap; /* Try to keep tags on one line if possible, but allow outer meta to wrap */
+        }
+
+
+        .news-description {
+            font-size: 12px;
+            color: #ccc;
+            margin-top: 0; 
+            margin-bottom: 10px; 
+            line-height: 1.4; 
+            flex-grow: 1; /* Allows description to take available space */
+        }
+        
+        .news-container.grid-layout .news-description {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 3; /* Show max 3 lines */
+            -webkit-box-orient: vertical;
+            max-height: calc(1.4em * 3); /* line-height * number of lines */
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.15); 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255,255,255,0.25);
+        }
+        html { 
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.15) transparent;
+        }
+
+        .loading-message, .error-message { 
+            color: #888;
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="table-container">
+        <div class="title-bar">News Articles</div>
+        <div class="filter-container">
+            <div class="filter-group"> 
+                <span class="filter-label">Search:</span>
+                <input type="text" id="search-input" placeholder="Search headlines...">
+            </div>
+            <div class="filter-group"> 
+                <!-- MODIFICATION: Changed label and select ID for Category -->
+                <span class="filter-label">Category:</span>
+                <select id="category-filter-select" class="filter-select-css">
+                    <option value="">All Categories</option>
+                </select>
+            </div>
+            <div class="layout-switcher filter-group">
+                <span class="filter-label">View:</span>
+                <button id="list-layout-btn" class="layout-button">List</button> <!-- Removed active initially -->
+                <button id="grid-layout-btn" class="layout-button">Grid</button> <!-- Removed active initially -->
+            </div>
+        </div>
+        <div class="news-container" id="news-container"> 
+            <div class='loading-message'>Loading articles...</div>
+        </div>
+    </div>
+    <script>
+        const DATA_ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbyUeMS5NxqeCGtghA96QO8PRt1ZbD42WjHfsAQ6IvchVvzXs0rPCqFaJt7ATemKeqCI/exec'; // Pastikan URL ini benar
+
+        const newsContainer = document.getElementById("news-container");
+        const searchInput = document.getElementById('search-input');
+        // MODIFICATION: Changed to categoryFilterSelect
+        const categoryFilterSelect = document.getElementById('category-filter-select');
+        const listLayoutButton = document.getElementById('list-layout-btn');
+        const gridLayoutButton = document.getElementById('grid-layout-btn');
+        
+        let allNewsItems = []; 
+        let currentLayout = 'grid'; // Default layout
+
+        async function fetchNews() {
+            newsContainer.innerHTML = "<div class='loading-message'>Fetching articles...</div>";
+            try {
+                const response = await fetch(DATA_ENDPOINT_URL); // Removed template literal as it's not needed here
+                
+                if (!response.ok) {
+                    let errorText = `Failed to fetch news. Status: ${response.status}`;
+                    try {
+                        const errorJson = await response.json(); 
+                        errorText += ` - Message: ${errorJson.error || 'No additional details.'}`;
+                        if(errorJson.details) errorText += ` Details: ${errorJson.details}`;
+                    } catch (e) {
+                        // If parsing JSON fails, try to get raw text
+                        let rawErrorText = '';
+                        try {
+                            rawErrorText = await response.text();
+                        } catch (textError) {
+                            // ignore if text also fails
+                        }
+                        errorText += ` - Raw response: ${rawErrorText || 'No raw response.'}`;
+                    }
+                    throw new Error(errorText);
+                }
+
+                const data = await response.json();
+
+                if (data.error) { 
+                    throw new Error(`API Error: ${data.error}${data.details ? ' - ' + data.details : ''}`);
+                }
+
+                if (!Array.isArray(data)) {
+                    console.error("Received data is not an array:", data);
+                    throw new Error("Invalid data format received from API. Expected an array.");
+                }
+                
+                allNewsItems = data.map(item => {
+                    const utcDate = item.date ? new Date(item.date) : null; 
+                    return {
+                        DateObj: (utcDate && !isNaN(utcDate.getTime())) ? utcDate : null, 
+                        Title: item.title || "No Title",         
+                        Description: item.description || "",     
+                        Link: item.link || "#",
+                        NewsSource: item.newsSource || "N/A",
+                        // MODIFICATION: Added Category to news item object
+                        Category: item.category || "Uncategorized" 
+                    };
+                }).filter(item => item.DateObj); // Keep filtering out items with invalid dates
+
+                // MODIFICATION: Populate category filter instead of source filter
+                populateCategoryFilter(allNewsItems); 
+                setLayout(currentLayout, true); // Set initial layout without re-filtering yet
+                applyFilters(); // Apply filters which will also render news
+
+            } catch (error) {
+                console.error("Error fetching or processing news:", error);
+                newsContainer.innerHTML = `<div class='error-message' style='color:red;'>Error loading articles: ${error.message}</div>`;
+            }
+        }
+
+        // MODIFICATION: Renamed and adapted to populate categories
+        function populateCategoryFilter(newsItems) {
+            const categories = [...new Set(newsItems.map(item => item.Category).filter(category => category && category !== "Uncategorized"))].sort();
+            const currentSelectedValue = categoryFilterSelect.value;
+            
+            // Clear existing options except the first one ("All Categories")
+            while (categoryFilterSelect.options.length > 1) {
+                categoryFilterSelect.remove(1);
+            }
+            
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category; 
+                option.textContent = category;
+                categoryFilterSelect.appendChild(option);
+            });
+
+            // Restore selection if possible
+            if (categories.includes(currentSelectedValue)) {
+                categoryFilterSelect.value = currentSelectedValue;
+            } else {
+                categoryFilterSelect.value = ""; // Default to "All Categories"
+            }
+        }
+        
+        function setLayout(newLayout, isInitialSetup = false) {
+            if (!isInitialSetup && currentLayout === newLayout) return;
+
+            newsContainer.classList.remove('list-layout', 'grid-layout'); // Remove both
+            
+            currentLayout = newLayout;
+            newsContainer.classList.add(currentLayout + '-layout'); // Add the current one
+
+            listLayoutButton.classList.toggle('active', currentLayout === 'list');
+            gridLayoutButton.classList.toggle('active', currentLayout === 'grid');
+
+            if (!isInitialSetup) {
+                applyFilters(); // Re-apply filters to re-render with new layout
+            }
+        }
+
+        function applyFilters() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            // MODIFICATION: Get selected category
+            const selectedCategory = categoryFilterSelect.value;
+            let filteredNews = allNewsItems;
+
+            // MODIFICATION: Filter by category
+            if (selectedCategory) {
+                filteredNews = filteredNews.filter(item => item.Category === selectedCategory);
+            }
+
+            if (searchTerm) {
+                filteredNews = filteredNews.filter(item => {
+                    const title = item.Title.toLowerCase();
+                    const description = (item.Description || "").toLowerCase();
+                    return title.includes(searchTerm) || description.includes(searchTerm);
+                });
+            }
+            renderNews(filteredNews);
+        }
+
+        function renderNews(newsItemsToRender) {
+            newsContainer.innerHTML = ''; 
+
+            if (newsItemsToRender.length === 0) {
+                newsContainer.innerHTML = "<div class='loading-message'>No articles found matching your criteria.</div>";
+                return;
+            }
+
+            newsItemsToRender.forEach(item => {
+                const title = item.Title;
+                let description = item.Description;
+                const dateStr = item.DateObj ? item.DateObj.toLocaleString('en-US', { 
+                    year: 'numeric', month: 'long', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit', hour12: false, 
+                    timeZone: 'Asia/Jakarta' // Or user's local timezone
+                }) : "Invalid Date";
+                const link = item.Link;
+                const newsSource = item.NewsSource || 'N/A';
+                // MODIFICATION: Get category
+                const category = item.Category || 'Uncategorized';
+
+                if (description) {
+                    // Basic formatting for numbered lists (example)
+                    description = description.replace(/(\d+\.\s)/g, '<br>&emsp;&bull; '); 
+                }
+
+                const newsItemDiv = document.createElement("div");
+                newsItemDiv.className = "news-item";
+                newsItemDiv.dataset.title = title; 
+                newsItemDiv.dataset.description = description;
+                newsItemDiv.dataset.source = newsSource;
+                newsItemDiv.dataset.category = category; // Add category to dataset
+
+                const titleElement = document.createElement("h2");
+                titleElement.className = "news-title";
+                titleElement.textContent = title;
+                if (link && link !== '#') {
+                    titleElement.onclick = () => window.open(link, '_blank');
+                } else {
+                    titleElement.style.cursor = 'default'; 
+                    titleElement.onclick = null; 
+                }
+                
+                const descriptionElement = document.createElement("p");
+                descriptionElement.className = "news-description";
+                descriptionElement.innerHTML = description; 
+
+                const metaElement = document.createElement("div");
+                metaElement.className = "news-meta";
+                
+                const dateDisplayElement = document.createElement("span");
+                dateDisplayElement.textContent = dateStr;
+
+                // MODIFICATION: Create and add Category tag
+                const categoryDisplayElement = document.createElement("span");
+                categoryDisplayElement.className = "news-item-category-display";
+                categoryDisplayElement.textContent = category;
+                
+                const sourceDisplayElement = document.createElement("span");
+                sourceDisplayElement.className = "news-item-source-display";
+                sourceDisplayElement.textContent = newsSource; 
+                
+                const tagsContainer = document.createElement("div"); // New container for tags
+                tagsContainer.className = "meta-tags-container";
+
+                metaElement.appendChild(dateDisplayElement); 
+                
+                // Append category tag if not 'Uncategorized' (or adjust as needed)
+                if (category.trim() !== '' && category !== 'Uncategorized') {
+                     tagsContainer.appendChild(categoryDisplayElement);
+                }
+                // Append source tag if not 'N/A'
+                if (newsSource.trim() !== '' && newsSource !== 'N/A') {
+                    tagsContainer.appendChild(sourceDisplayElement); 
+                }
+                if (tagsContainer.hasChildNodes()) { // Only add tags container if it has tags
+                    metaElement.appendChild(tagsContainer);
+                }
+
+                newsItemDiv.appendChild(titleElement);
+                if (description.trim() !== "") { 
+                    newsItemDiv.appendChild(descriptionElement);
+                }
+                newsItemDiv.appendChild(metaElement);
+
+                newsContainer.appendChild(newsItemDiv);
+            });
+        }
+
+        listLayoutButton.addEventListener('click', () => setLayout('list'));
+        gridLayoutButton.addEventListener('click', () => setLayout('grid'));
+        searchInput.addEventListener('input', applyFilters);
+        // MODIFICATION: Event listener for category filter
+        categoryFilterSelect.addEventListener('change', applyFilters);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set initial layout class and button states
+            newsContainer.classList.add(currentLayout + '-layout');
+            listLayoutButton.classList.toggle('active', currentLayout === 'list');
+            gridLayoutButton.classList.toggle('active', currentLayout === 'grid');
+            fetchNews(); // Fetch news after DOM is ready and initial layout is set
+        });
+        
+    </script>
+</body>
+</html>

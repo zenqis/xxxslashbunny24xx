@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Yield Curve Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace; 
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chart-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1; 
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000; 
+            border: 1px solid #222; 
+            border-radius: 0; 
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .chart-title-bar {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start; 
+            background-color: #1a1a1a; 
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            padding-left: 12px;
+            flex-shrink: 0; 
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1; 
+            padding: 16px;
+            gap: 15px; 
+            box-sizing: border-box;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .controls-wrapper {
+            display: flex;
+            justify-content: flex-start; 
+            align-items: center;
+            padding-bottom: 10px; 
+            flex-shrink: 0; 
+        }
+
+        .controls-wrapper label {
+            margin-right: 10px;
+            font-size: 12px;
+            color: #ccc; 
+        }
+
+        .controls-wrapper select {
+            background-color: #1a1a1a; 
+            border: 1px solid #333;
+            border-radius: 5px;
+            color: #eee; 
+            padding: 6px 10px; 
+            font-size: 12px;
+            font-family: 'Source Code Pro', monospace; 
+            cursor: pointer;
+            outline: none; 
+        }
+        
+        .controls-wrapper select:hover {
+            border-color: #ff8000; 
+        }
+
+        .canvas-wrapper {
+            flex: 1; 
+            position: relative; 
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        canvas#myYieldChart {
+            max-width: 100%;
+            max-height: 100%;
+            display: block; 
+        }
+    </style>
+</head>
+<body>
+<div class="chart-container">
+    <div class="chart-title-bar">Yield Curve</div>
+    <div class="content-wrapper">
+        <div class="controls-wrapper">
+            <label for="country-select-yc">Select Country:</label> 
+            <select id="country-select-yc" onchange="updateYieldCurve(this.value)"></select>
+        </div>
+        <div class="canvas-wrapper">
+            <canvas id="myYieldChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQYiJV_oUwE0qR24XL8RsaCtR2KEvfkPgxZ_LA9GsVCIqNINbRqG_1Vi4sWpG1MzkSHA/exec';
+    const ctxYield = document.getElementById('myYieldChart').getContext('2d'); 
+    const countrySelect = document.getElementById('country-select-yc');
+    
+    let myYieldChartInstance;
+    let yieldCurveDataStore = {}; // Untuk menyimpan data YLDC yang sudah diambil
+
+    // Peta untuk nama lengkap negara
+    const fullCountryNames = {
+        FED: "US", ECB: "EU", BOJ: "Japan", BOE: "UK", BOC: "Canada", 
+        RBA: "Australia", RBNZ: "New Zealand", SNB: "Switzerland"
+    };
+
+    /**
+     * Mengambil dan memproses data dari Google Script.
+     */
+    async function initializeYieldChart() {
+        try {
+            const response = await fetch(SCRIPT_URL);
+            if (!response.ok) throw new Error(`Network response error: ${response.statusText}`);
+            const jsonData = await response.json();
+            const rawData = jsonData.YLDC;
+
+            if (!rawData || Object.keys(rawData).length === 0) {
+                throw new Error("YLDC data is empty or missing from the JSON response.");
+            }
+            
+            // Simpan data mentah
+            yieldCurveDataStore = rawData;
+            
+            // Isi dropdown
+            countrySelect.innerHTML = '';
+            Object.keys(yieldCurveDataStore).forEach(countryKey => {
+                const option = document.createElement('option');
+                option.value = countryKey;
+                option.textContent = fullCountryNames[countryKey] || countryKey;
+                countrySelect.appendChild(option);
+            });
+
+            // Buat chart dengan data pertama
+            const initialKey = Object.keys(yieldCurveDataStore)[0];
+            createYieldChart(initialKey);
+
+        } catch (error) {
+            console.error("Failed to initialize yield chart:", error);
+            const canvasWrapper = document.querySelector('.canvas-wrapper');
+            canvasWrapper.innerHTML = `<p style="color: #ff5252; text-align: center;">Failed to load chart data. ${error.message}</p>`;
+        }
+    }
+
+    /**
+     * Membuat instance chart baru.
+     * @param {string} countryKey - Kunci negara yang akan ditampilkan.
+     */
+    function createYieldChart(countryKey) {
+        const countryData = yieldCurveDataStore[countryKey];
+        const labels = countryData.Tenor;
+        // Ubah data yield dari string "5.50%" menjadi angka
+        const data = countryData.Yield.map(y => parseFloat(y.replace('%', '')));
+
+        const config = { 
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: `${fullCountryNames[countryKey] || countryKey} Yield Curve`,
+                    data: data,
+                    borderColor: '#ff8000', 
+                    backgroundColor: 'rgba(255, 128, 0, 0.2)', 
+                    fill: true,
+                    tension: 0.3, 
+                    borderWidth: 2, 
+                    pointBackgroundColor: '#ff8000', 
+                    pointBorderColor: '#fff', 
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#ff8000'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, 
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Tenor', color: '#ccc' },
+                        grid: { color: '#2a2a2a' },
+                        ticks: { color: '#e1e1e1' }
+                    },
+                    y: {
+                        title: { display: true, text: 'Yield (%)', color: '#ccc' },
+                        grid: { color: '#2a2a2a' },
+                        ticks: {
+                            color: '#e1e1e1',
+                            callback: value => value.toFixed(1) + '%'
+                        },
+                        beginAtZero: false 
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        callbacks: {
+                            label: context => `Yield: ${context.parsed.y.toFixed(2)}%`
+                        }
+                    }
+                }
+            }
+        };
+        myYieldChartInstance = new Chart(ctxYield, config); 
+    }
+
+    /**
+     * Memperbarui data chart ketika pilihan negara berubah.
+     * @param {string} countryKey - Kunci negara yang dipilih.
+     */
+    window.updateYieldCurve = function(countryKey) { 
+        if (yieldCurveDataStore[countryKey] && myYieldChartInstance) {
+            const countryData = yieldCurveDataStore[countryKey];
+            myYieldChartInstance.data.labels = countryData.Tenor; // Update Tenor
+            myYieldChartInstance.data.datasets[0].data = countryData.Yield.map(y => parseFloat(y.replace('%', ''))); // Update Yield
+            myYieldChartInstance.data.datasets[0].label = `${fullCountryNames[countryKey] || countryKey} Yield Curve`;
+            myYieldChartInstance.update();
+        }
+    }
+
+    // Panggil fungsi inisialisasi saat halaman dimuat
+    document.addEventListener('DOMContentLoaded', initializeYieldChart);
+</script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Responsive Chart Inside Iframe</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace;
+            height: 100%;
+            width: 100%;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden;
+        }
+
+        .chart-title-bar {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            background-color: #1a1a1a;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            padding-left: 12px;
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 16px;
+            gap: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .tab-button {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 5px;
+            color: #eee;
+            padding: 3px 6px;
+            font-size: 9px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .tab-button:hover,
+        .tab-button.active {
+            background-color: #ff8000;
+            color: #000;
+        }
+
+        .canvas-wrapper {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+<div class="chart-container">
+    <div class="chart-title-bar">Line Chart</div>
+    <div class="content-wrapper">
+        <div class="tabs">
+            <button class="tab-button active" onclick="changeChart('US', event)">US</button>
+            <button class="tab-button" onclick="changeChart('EU', event)">EU</button>
+            <button class="tab-button" onclick="changeChart('JP', event)">JP</button>
+            <button class="tab-button" onclick="changeChart('GB', event)">GB</button>
+            <button class="tab-button" onclick="changeChart('AU', event)">AU</button>
+            <button class="tab-button" onclick="changeChart('NZ', event)">NZ</button>
+            <button class="tab-button" onclick="changeChart('CA', event)">CA</button>
+            <button class="tab-button" onclick="changeChart('CH', event)">CH</button>
+            <button class="tab-button" onclick="changeChart('CN', event)">CN</button>
+        </div>
+        <div class="canvas-wrapper">
+            <canvas id="myLineChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ctx = document.getElementById('myLineChart').getContext('2d');
+
+    const chartDataSets = {
+        US: [65, 59, 80, 81, 56, 55, 40],
+        EU: [30, 40, 50, 45, 70, 80, 60],
+        JP: [10, 20, 30, 40, 30, 20, 10],
+        GB: [55, 60, 65, 60, 55, 50, 45],
+        AU: [70, 75, 78, 80, 85, 83, 82],
+        NZ: [25, 30, 35, 33, 32, 34, 36],
+        CA: [40, 42, 45, 43, 41, 40, 39],
+        CH: [60, 62, 65, 64, 63, 61, 60],
+        CN: [80, 78, 76, 75, 74, 73, 72],
+    };
+
+    const chartLabels = ['January', 'February', 'March', 'April', 'May', 'June', 'July'];
+
+    const config = {
+        type: 'line',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'US Data',
+                data: chartDataSets['US'],
+                borderColor: '#ff8000',
+                backgroundColor: 'rgba(255, 128, 0, 0.2)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: {
+                        color: '#444',
+                        borderColor: '#444',
+                    },
+                    ticks: {
+                        color: '#e1e1e1'
+                    }
+                },
+                y: {
+                    grid: {
+                        color: '#444',
+                        borderColor: '#444',
+                    },
+                    ticks: {
+                        color: '#e1e1e1'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    };
+
+    const myLineChart = new Chart(ctx, config);
+
+    function changeChart(region, event) {
+        myLineChart.data.datasets[0].data = chartDataSets[region];
+        myLineChart.data.datasets[0].label = `${region} Data`;
+        myLineChart.update();
+
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+    }
+</script>
+</body>
+</html>

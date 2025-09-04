@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>COT Overview Dashboard - Live Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace;
+            height: 100%;
+            width: 100%;
+            overflow: hidden; 
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100%; 
+            overflow: hidden;
+        }
+
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1; 
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden; 
+            min-height: 0;
+        }
+
+        .dashboard-title-bar {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            background-color: #1a1a1a;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            padding-left: 12px;
+            flex-shrink: 0;
+        }
+       
+        .loader-text {
+            color: #ff8000;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+
+        /* NEW: Styles for control bar */
+        .controls-bar {
+            padding: 10px;
+            background-color: #0a0a0a;
+            border-bottom: 1px solid #222;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .controls-bar label {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .controls-bar select {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 5px;
+            color: #eee;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-family: 'Source Code Pro', monospace;
+            cursor: pointer;
+            outline: none;
+        }
+        .controls-bar select:hover {
+            border-color: #ff8000;
+        }
+
+
+        .dashboard-content-wrapper {
+            flex: 1; 
+            padding: 10px; 
+            box-sizing: border-box;
+            overflow-y: auto; 
+            overflow-x: auto; 
+            min-height: 0;
+        }
+       
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th, td {
+            border: 1px solid #1c1c1c; 
+            padding: 6px;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            background-color: #1a1a1a; 
+            color: #ff8000;
+            position: sticky; 
+            top: 0; 
+            z-index: 10;
+            white-space: nowrap; 
+            font-size: 13px;
+        }
+       
+        td {
+            color: #bbb;
+            white-space: nowrap; 
+        }
+        td:not(:first-child) { 
+            text-align: right;
+        }
+       
+        tr:nth-child(even) {
+            background-color: #080808;
+        }
+        tr:hover {
+            background-color: #151515; 
+        }
+
+        .chart-cell {
+            width: 80px; 
+            height: 40px;
+            padding: 2px;
+            box-sizing: border-box;
+        }
+        .chart-cell canvas {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+        .positive-change, .positive-value {
+            color: #4CAF50; 
+        }
+        .negative-change, .negative-value {
+            color: #F44336; 
+        }
+        .instrument-name {
+            font-weight: bold;
+            color: #e0e0e0; 
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard-container">
+    <div class="dashboard-title-bar">COT Overview Dashboard <span id="loading-indicator" class="loader-text"></span></div>
+   
+    <!-- NEW: Controls Bar for Dropdowns -->
+    <div class="controls-bar">
+        <div class="control-group">
+            <label for="instrument-category-select">Asset Class:</label>
+            <select id="instrument-category-select"></select>
+        </div>
+        <div class="control-group">
+            <label for="trader-category-select">Trader Category:</label>
+            <select id="trader-category-select"></select>
+        </div>
+    </div>
+
+    <div class="dashboard-content-wrapper">
+        <table id="cot-overview-table">
+            <thead>
+                <tr>
+                    <th>Instrument</th>
+                    <th>Net Position</th>
+                    <th>Open Interest</th>
+                    <th>Total Long</th>
+                    <th>Total Short</th>
+                    <th>Weekly Δ Net</th>
+                    <th>Net Pos Trend (30w)</th>
+                    <th>Buy/Sell %</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data will be populated here by script -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwr-JR2ibyM1ExSW6F-Hm6LiSYPOrvUHM8CtSaVPTDobxeQe7bbCM0stpfoqeEllOLj/exec';
+    let cotDataStore = {};
+    let miniChartInstances = {};
+
+    // Global state for filters
+    let currentInstrumentCategory = 'currencies';
+    let currentTraderCategory = 'leveragedFund';
+
+    const instrumentNames = { 
+        CA: "Canadian Dollar", CH: "Swiss Franc", GB: "British Pound",
+        JP: "Japanese Yen", EU: "Euro FX", AU: "Australian Dollar",
+        NZ: "New Zealand Dollar", US: "US Dollar Index", GC: "Gold",
+        OI: "Crude Oil (WTI)"
+    };
+
+    const colors = {
+        netPositionLinePositive: 'rgba(34, 177, 76, 0.8)',
+        netPositionFillPositive: 'rgba(34, 177, 76, 0.1)',
+        netPositionLineNegative: 'rgba(237, 28, 36, 0.8)',
+        netPositionFillNegative: 'rgba(237, 28, 36, 0.1)',
+        long: 'rgba(34, 177, 76, 0.8)',      
+        short: 'rgba(237, 28, 36, 0.8)',       
+    };
+
+    /**
+     * Fetches and transforms data from the Google Apps Script
+     */
+    async function fetchAndProcessData() {
+        const loadingIndicator = document.getElementById('loading-indicator');
+        loadingIndicator.textContent = '(Loading data...)';
+        try {
+            const response = await fetch(SCRIPT_URL);
+            if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
+           
+            const rawData = await response.json();
+            const transformedData = {};
+
+            // Standardize keys for all instruments
+            Object.keys(instrumentNames).forEach(sheetKey => {
+                if (rawData[sheetKey] && Array.isArray(rawData[sheetKey])) {
+                    // *** DATA PROCESSING FIX: Add || 0 to prevent NaN errors from undefined values ***
+                    transformedData[sheetKey] = rawData[sheetKey].map(entry => ({
+                        date: new Date(entry["Report Date"]),
+                        leveragedFund: { 
+                            long: entry["Leveraged Fund Long"] || 0, 
+                            short: entry["Leveraged Fund Short"] || 0 
+                        },
+                        assetManager: { 
+                            long: entry["Asset Manager Long"] || 0, 
+                            short: entry["Asset Manager Short"] || 0 
+                        },
+                        dealer: { 
+                            long: entry["Dealer Long"] || 0, 
+                            short: entry["Dealer Short"] || 0
+                        },
+                        // Mapped Commodity Keys
+                        managedMoney: {
+                            long: entry["Managed Money Long"] || 0,
+                            short: entry["Managed Money Short"] || 0
+                        },
+                        producerMerchant: {
+                            long: entry["Producent Merhant Long"] || 0,
+                            short: entry["Producent Merhant Short"] || 0
+                        },
+                        swapDealer: {
+                            long: entry["Swap Long"] || 0,
+                            short: entry["Swap Short"] || 0
+                        },
+                        openInterest: entry["Open Interest"] || 0
+                    })).sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort oldest to newest
+                }
+            });
+            loadingIndicator.textContent = '';
+            return transformedData;
+        } catch (error) {
+            console.error("Failed to fetch or process COT data:", error);
+            loadingIndicator.textContent = '(Error)';
+            return {};
+        }
+    }
+
+    function formatNumber(num) {
+        if (typeof num !== 'number' || isNaN(num)) return 'N/A';
+        if (Math.abs(num) >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (Math.abs(num) >= 1000) return (num / 1000).toFixed(0) + 'K';
+        return num.toLocaleString('en-US');
+    }
+
+    function destroyMiniCharts() {
+        Object.values(miniChartInstances).forEach(chart => chart.destroy());
+        miniChartInstances = {};
+    }
+
+    /**
+     * Populates the main overview table based on the current filter selections
+     */
+    function populateTable() {
+        destroyMiniCharts();
+        const tableBody = document.getElementById('cot-overview-table').querySelector('tbody');
+        tableBody.innerHTML = ''; 
+
+        // Define which instruments to show based on the selected category
+        const instrumentList = {
+            currencies: ['EU', 'GB', 'JP', 'CH', 'CA', 'AU', 'NZ', 'US'],
+            commodities: ['GC', 'OI']
+        };
+
+        const displayOrder = instrumentList[currentInstrumentCategory];
+
+        displayOrder.forEach(instrumentKey => {
+            if (!cotDataStore[instrumentKey]) return; 
+
+            const historicalData = cotDataStore[instrumentKey];
+            if (historicalData.length < 2) return; 
+
+            const latestReport = historicalData[historicalData.length - 1];
+            const previousReport = historicalData[historicalData.length - 2];
+
+            // Get data for the selected trader category
+            const latestCategoryData = latestReport[currentTraderCategory] || {};
+            const prevCategoryData = previousReport[currentTraderCategory] || {};
+
+            const latestLong = latestCategoryData.long || 0;
+            const latestShort = latestCategoryData.short || 0;
+            // --- CALCULATION AS PER REQUEST: Direct subtraction for Net Position ---
+            const latestNet = latestLong - latestShort;
+           
+            const prevLong = prevCategoryData.long || 0;
+            const prevShort = prevCategoryData.short || 0;
+            const prevNet = prevLong - prevShort;
+            // --- CALCULATION AS PER REQUEST: Direct subtraction for Weekly Change ---
+            const weeklyChangeNet = latestNet - prevNet;
+           
+            const row = tableBody.insertRow();
+            row.innerHTML = `
+                <td class="instrument-name">${instrumentNames[instrumentKey]}</td>
+                <td class="${latestNet >= 0 ? 'positive-value' : 'negative-value'}">${formatNumber(latestNet)}</td>
+                <td>${formatNumber(latestReport.openInterest)}</td>
+                <td>${formatNumber(latestLong)}</td>
+                <td>${formatNumber(latestShort)}</td>
+                <td class="${weeklyChangeNet >= 0 ? 'positive-change' : 'negative-change'}">${formatNumber(weeklyChangeNet)}</td>
+                <td class="chart-cell"><canvas id="netChart-${instrumentKey}"></canvas></td>
+                <td class="chart-cell"><canvas id="doughnutChart-${instrumentKey}"></canvas></td>
+            `;
+
+            setTimeout(() => {
+                const trendData = historicalData.slice(-30); 
+                renderNetPositionMiniChart(`netChart-${instrumentKey}`, trendData, currentTraderCategory);
+                renderBuySellDoughnutMiniChart(`doughnutChart-${instrumentKey}`, latestLong, latestShort);
+            }, 0);
+        });
+    }
+
+    /**
+     * Renders a mini line chart for net position trend for a specific category
+     */
+    function renderNetPositionMiniChart(canvasId, historicalData, traderCategory) {
+        const element = document.getElementById(canvasId);
+        if (!element) return;
+        const ctx = element.getContext('2d');
+        const netPositions = historicalData.map(d => {
+            const categoryData = d[traderCategory] || { long: 0, short: 0 };
+            // --- CALCULATION AS PER REQUEST: Direct subtraction for Net Position Trend ---
+            return (categoryData.long || 0) - (categoryData.short || 0);
+        });
+        const labels = historicalData.map(d => d.date);
+
+        miniChartInstances[canvasId] = new Chart(ctx, { 
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Net Position', 
+                    data: netPositions,
+                    borderWidth: 1.5, 
+                    pointRadius: 0, 
+                    fill: true, 
+                    tension: 0.4,
+                    segment: { 
+                        borderColor: ctxSeg => netPositions[ctxSeg.p0DataIndex] >= 0 ? colors.netPositionLinePositive : colors.netPositionLineNegative,
+                        backgroundColor: ctxSeg => netPositions[ctxSeg.p0DataIndex] >= 0 ? colors.netPositionFillPositive : colors.netPositionFillNegative,
+                    }
+                }]
+            },
+            options: miniChartOptions(true)
+        });
+    }
+
+    /**
+     * Renders a mini doughnut chart for buy/sell percentage
+     */
+    function renderBuySellDoughnutMiniChart(canvasId, totalLong, totalShort) {
+        const element = document.getElementById(canvasId);
+        if (!element) return;
+        const ctx = element.getContext('2d');
+        const grandTotal = totalLong + totalShort;
+        const percLong = grandTotal > 0 ? (totalLong / grandTotal) * 100 : 0;
+
+        miniChartInstances[canvasId] = new Chart(ctx, { 
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [totalLong, totalShort], 
+                    backgroundColor: [colors.long, colors.short],
+                    borderColor: '#000', 
+                    borderWidth: 1.5, 
+                    hoverOffset: 2 
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: { display: false }, 
+                    tooltip: { 
+                        enabled: true, 
+                        displayColors: false, 
+                        callbacks: {
+                            title: () => null, 
+                            label: (context) => {
+                                const type = context.dataIndex === 0 ? 'Long' : 'Short';
+                                const displayPercentage = context.dataIndex === 0 ? percLong : (100 - percLong);
+                                return `${type}: ${displayPercentage.toFixed(0)}%`; 
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function miniChartOptions(isTimeSeries = false) {
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            plugins: {
+                legend: { display: false },
+                tooltip: { 
+                    enabled: true, 
+                    mode: 'index', 
+                    intersect: false,
+                    displayColors: false,
+                    padding: 4, 
+                    callbacks: {
+                        title: () => null,
+                        label: (context) => formatNumber(context.parsed.y)
+                    }
+                } 
+            },
+            scales: {
+                y: { display: false },
+                x: { display: false }
+            }
+        };
+        if (isTimeSeries) {
+            options.scales.x.type = 'time';
+            options.scales.x.time = { unit: 'week' };
+        }
+        return options;
+    }
+   
+    /**
+     * Sets up the filter dropdowns and their event listeners
+     */
+    function setupControls() {
+        const instrumentCategorySelect = document.getElementById('instrument-category-select');
+        const traderCategorySelect = document.getElementById('trader-category-select');
+
+        const traderCategories = {
+            currencies: {
+                leveragedFund: 'Leveraged Fund',
+                assetManager: 'Asset Manager',
+                dealer: 'Dealer'
+            },
+            commodities: {
+                managedMoney: 'Managed Money',
+                producerMerchant: 'Producer/Merchant',
+                swapDealer: 'Swap Dealer'
+            }
+        };
+
+        // Populate instrument category dropdown
+        instrumentCategorySelect.innerHTML = `
+            <option value="currencies">Currencies</option>
+            <option value="commodities">Commodities</option>
+        `;
+        instrumentCategorySelect.value = currentInstrumentCategory;
+
+        // Function to update trader category dropdown
+        function updateTraderCategoryDropdown() {
+            const selectedInstrumentCat = instrumentCategorySelect.value;
+            const relevantTraderCats = traderCategories[selectedInstrumentCat];
+            traderCategorySelect.innerHTML = '';
+            Object.keys(relevantTraderCats).forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = relevantTraderCats[key];
+                traderCategorySelect.appendChild(option);
+            });
+             // Set the first one as default when changing instrument category
+            traderCategorySelect.value = Object.keys(relevantTraderCats)[0];
+        }
+
+        // Initial population
+        updateTraderCategoryDropdown();
+
+        // Event Listeners
+        instrumentCategorySelect.addEventListener('change', (event) => {
+            currentInstrumentCategory = event.target.value;
+            updateTraderCategoryDropdown(); // Update trader options
+            currentTraderCategory = traderCategorySelect.value; // Reset to the new default
+            populateTable(); // Re-render table
+        });
+
+        traderCategorySelect.addEventListener('change', (event) => {
+            currentTraderCategory = event.target.value;
+            populateTable(); // Re-render table
+        });
+    }
+
+    /**
+     * Initializes the dashboard
+     */
+    async function initializeDashboard() {
+        cotDataStore = await fetchAndProcessData();
+        setupControls(); // Set up filters before populating
+        populateTable();
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeDashboard);
+</script>
+</body>
+</html>

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Retail Trader Overview Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100%; 
+            overflow: hidden;
+        }
+
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .dashboard-title-bar {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            background-color: #1a1a1a;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            padding-left: 12px;
+            flex-shrink: 0;
+        }
+
+        .dashboard-content-wrapper {
+            flex: 1;
+            padding: 10px; 
+            box-sizing: border-box;
+            overflow: auto;
+            min-height: 0;
+        }
+        
+        /* Minimalist macOS–Style Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+        /* For Firefox */
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th, td {
+            border: 1px solid #1c1c1c; 
+            padding: 6px;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            background-color: #1a1a1a; 
+            color: #ff8000;
+            position: sticky;
+            top: 0; 
+            z-index: 10;
+            white-space: nowrap; 
+            font-size: 13px;
+        }
+        
+        td {
+            color: #bbb;
+            white-space: nowrap; 
+        }
+        td:not(:first-child) { 
+            text-align: right;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #080808;
+        }
+        tr:hover {
+            background-color: #151515; 
+        }
+
+        .chart-cell {
+            width: 80px; 
+            height: 40px; 
+            padding: 2px;
+            box-sizing: border-box;
+        }
+        .chart-cell canvas {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+        .positive-change, .positive-value {
+            color: #4CAF50; 
+        }
+        .negative-change, .negative-value {
+            color: #F44336; 
+        }
+        .instrument-name {
+            font-weight: bold;
+            color: #e0e0e0; 
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard-container">
+    <div class="dashboard-title-bar">Community Sentiment Overview</div>
+    <div class="dashboard-content-wrapper">
+        <table id="retail-overview-table">
+            <thead>
+                <tr>
+                    <!-- UPDATED: Table headers changed to reflect volume -->
+                    <th>Instrument</th>
+                    <th>Net Volume (Lots)</th>
+                    <th>Total Positions</th>
+                    <th>% Long</th>
+                    <th>% Short</th>
+                    <th>Weekly Δ Vol.</th>
+                    <th>Net Vol. Trend</th>
+                    <th>Vol. Buy/Sell %</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw5EDnvhXmjSfRKp9AROuG9bDZMuaC_TNDqQbR0oziTFY_9zP20OwygQybxdgG3hkQhtw/exec';
+
+    const retailDashboardColors = {
+        netPositionLinePositive: 'rgba(34, 177, 76, 0.8)', 
+        netPositionFillPositive: 'rgba(34, 177, 76, 0.1)', 
+        netPositionLineNegative: 'rgba(237, 28, 36, 0.8)', 
+        netPositionFillNegative: 'rgba(237, 28, 36, 0.1)', 
+        long: 'rgba(34, 177, 76, 0.8)',       
+        short: 'rgba(237, 28, 36, 0.8)',      
+    };
+
+    let miniChartInstances = {}; 
+
+    function formatRetailDashNumber(numStr, isPercentage = false) {
+        const num = parseFloat(numStr);
+        if (isNaN(num)) return numStr;
+
+        if (isPercentage) {
+            return num.toFixed(0) + '%'; 
+        }
+        if (Math.abs(num) >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (Math.abs(num) >= 1000) {
+            return (num / 1000).toFixed(0) + 'K'; 
+        }
+        return num.toLocaleString('en-US');
+    }
+
+    function destroyMiniCharts() {
+        Object.keys(miniChartInstances).forEach(key => {
+            if (miniChartInstances[key]) {
+                miniChartInstances[key].destroy();
+            }
+        });
+        miniChartInstances = {}; 
+    }
+
+    async function populateRetailOverviewTable() {
+        const tableBody = document.getElementById('retail-overview-table').getElementsByTagName('tbody')[0];
+        tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Loading data...</td></tr>';
+
+        try {
+            const response = await fetch(SCRIPT_URL);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch data: ${response.statusText}`);
+            }
+            const dataStore = await response.json();
+
+            destroyMiniCharts(); 
+            tableBody.innerHTML = ''; 
+
+            Object.keys(dataStore).forEach(instrumentKey => {
+                const historicalData = dataStore[instrumentKey];
+                if (!historicalData || historicalData.length === 0) return;
+
+                const latestReport = historicalData[0]; // Latest data from GAS
+                const previousReport = historicalData.length > 1 ? historicalData[1] : null;
+
+                // UPDATED: Net position is now calculated from longVolume and shortVolume
+                const latestNetVolume = parseFloat(latestReport.longVolume) - parseFloat(latestReport.shortVolume);
+                
+                let weeklyChangeNet = 'N/A';
+                let changeClass = '';
+                if (previousReport) {
+                    // UPDATED: Previous net position is now calculated from longVolume and shortVolume
+                    const prevNetVolume = parseFloat(previousReport.longVolume) - parseFloat(previousReport.shortVolume);
+                    const change = latestNetVolume - prevNetVolume;
+                    weeklyChangeNet = formatRetailDashNumber(String(change));
+                    changeClass = change >= 0 ? 'positive-change' : 'negative-change';
+                }
+
+                const row = tableBody.insertRow();
+                
+                const instrumentCell = row.insertCell();
+                instrumentCell.textContent = instrumentKey;
+                instrumentCell.className = 'instrument-name';
+
+                const netPosCell = row.insertCell();
+                netPosCell.textContent = formatRetailDashNumber(String(latestNetVolume));
+                netPosCell.className = latestNetVolume >= 0 ? 'positive-value' : 'negative-value';
+                
+                row.insertCell().textContent = formatRetailDashNumber(latestReport.totalPositions);
+                row.insertCell().textContent = formatRetailDashNumber(latestReport.longPercentage, true);
+                row.insertCell().textContent = formatRetailDashNumber(latestReport.shortPercentage, true);
+                
+                const changeNetCell = row.insertCell();
+                changeNetCell.textContent = weeklyChangeNet;
+                changeNetCell.className = changeClass;
+
+                const netPositionChartCell = row.insertCell();
+                netPositionChartCell.className = 'chart-cell';
+                const netCanvasId = `retailNetChart-${instrumentKey}`;
+                netPositionChartCell.innerHTML = `<canvas id="${netCanvasId}"></canvas>`;
+                
+                const doughnutChartCell = row.insertCell();
+                doughnutChartCell.className = 'chart-cell';
+                const doughnutCanvasId = `retailDoughnutChart-${instrumentKey}`;
+                doughnutChartCell.innerHTML = `<canvas id="${doughnutCanvasId}"></canvas>`;
+
+                setTimeout(() => { 
+                    renderRetailNetPositionMiniChart(netCanvasId, historicalData);
+                    // UPDATED: Doughnut chart now uses volume for its calculation
+                    renderRetailBuySellDoughnutMiniChart(doughnutCanvasId, parseFloat(latestReport.longVolume), parseFloat(latestReport.shortVolume));
+                }, 0);
+            });
+        } catch(error) {
+            console.error("Failed to populate table:", error);
+            tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;">Error loading data: ${error.message}</td></tr>`;
+        }
+    }
+
+    function renderRetailNetPositionMiniChart(canvasId, historicalData) {
+        const element = document.getElementById(canvasId);
+        if (!element) return;
+        const ctx = element.getContext('2d');
+        // UPDATED: Net positions for the mini chart are calculated from volume
+        const netVolumes = historicalData.map(d => parseFloat(d.longVolume) - parseFloat(d.shortVolume)).reverse(); // Reverse for correct timeline
+        const labels = historicalData.map(d => new Date(d.Timestamp)).reverse(); // Reverse for correct timeline
+
+        miniChartInstances[canvasId] = new Chart(ctx, { 
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Net Volume', 
+                    data: netVolumes,
+                    borderWidth: 1, 
+                    pointRadius: 0, 
+                    fill: true, 
+                    tension: 0.4,
+                    segment: { 
+                        borderColor: ctxSeg => netVolumes[ctxSeg.p0DataIndex] >= 0 ? retailDashboardColors.netPositionLinePositive : retailDashboardColors.netPositionLineNegative,
+                        backgroundColor: ctxSeg => netVolumes[ctxSeg.p0DataIndex] >= 0 ? retailDashboardColors.netPositionFillPositive : retailDashboardColors.netPositionFillNegative,
+                    }
+                }]
+            },
+            options: miniChartOptions(true) 
+        });
+    }
+
+    function renderRetailBuySellDoughnutMiniChart(canvasId, totalLong, totalShort) {
+        const element = document.getElementById(canvasId);
+        if (!element) return;
+        const ctx = element.getContext('2d');
+        const grandTotal = totalLong + totalShort;
+        const percLong = grandTotal > 0 ? (totalLong / grandTotal) * 100 : 0;
+
+        miniChartInstances[canvasId] = new Chart(ctx, { 
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [totalLong, totalShort], 
+                    backgroundColor: [retailDashboardColors.long, retailDashboardColors.short],
+                    borderColor: '#060606', 
+                    borderWidth: 1, 
+                    hoverOffset: 1 
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%', // Thicker doughnut
+                plugins: {
+                    legend: { display: false }, 
+                    tooltip: { 
+                        enabled: true, 
+                        displayColors: false, 
+                        callbacks: {
+                            title: () => null, 
+                            label: function(context) {
+                                const type = context.dataIndex === 0 ? 'Long' : 'Short';
+                                const percentage = context.dataIndex === 0 ? percLong : (100 - percLong);
+                                // The label shows the percentage of volume
+                                return `${type}: ${percentage.toFixed(0)}%`; 
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function miniChartOptions(isTimeSeries = false) {
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            plugins: {
+                legend: { display: false },
+                tooltip: { 
+                    enabled: true, 
+                    mode: 'index', 
+                    intersect: false,
+                    displayColors: false,
+                    padding: 4, 
+                    callbacks: {
+                        title: () => null,
+                        label: function(context) {
+                            if (context.parsed.y !== null) {
+                                return `${formatRetailDashNumber(String(context.parsed.y))}`;
+                            }
+                            return '';
+                        }
+                    }
+                } 
+            },
+            scales: {
+                y: { display: false },
+                x: { display: false }
+            }
+        };
+        if (isTimeSeries) {
+            options.scales.x.type = 'time';
+            options.scales.x.time = { unit: 'day' };
+        }
+        return options;
+    }
+
+    document.addEventListener('DOMContentLoaded', populateRetailOverviewTable);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Widget - Persistent Tabs & Layout</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Global Styles and Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.2); }
+        html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Source Code Pro', monospace;
+            background-color: #000;
+            color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+        
+        /* Prevent text selection during drag on mobile */
+        body.dragging-touch {
+              -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .tab-bar-container {
+            background-color: #1a1a1a;
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #2a2a2a;
+            flex-shrink: 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+            position: relative;
+            z-index: 1000;
+        }
+
+        #tab-bar {
+            display: flex;
+            align-items: flex-end;
+            flex-shrink: 0;
+        }
+
+        .tab-item {
+            background-color: #2c2c2c;
+            color: #ccc;
+            padding: 6px 12px;
+            margin-right: 5px;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+            border: 1px solid #333;
+            border-bottom: none;
+            transition: background-color 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .tab-item:hover {
+            background-color: #383838;
+            color: #fff;
+        }
+
+        .tab-item.active {
+            background-color: #111111;
+            color: #FFA500;
+            border-color: #2a2a2a;
+            position: relative;
+        }
+        .tab-item.active:after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background-color: #111111; /* Match active tab bg to cover border */
+        }
+
+        .tab-name {
+            padding-right: 8px;
+        }
+
+        .tab-item .close-tab-button {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            padding: 0 0 0 4px;
+            margin-left: 5px;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .tab-item .close-tab-button:hover {
+            color: #fff;
+        }
+
+        .rename-controls {
+            display: none;
+            align-items: center;
+            width: 100%;
+        }
+
+        .tab-item.renaming .tab-name,
+        .tab-item.renaming .close-tab-button {
+            display: none;
+        }
+
+        .tab-item.renaming .rename-controls {
+            display: flex;
+        }
+
+        .rename-input {
+            flex-grow: 1;
+            background-color: #333;
+            color: #f0f0f0;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 3px 6px;
+            font-size: 13px;
+            font-family: 'Source Code Pro', monospace;
+            margin-right: 4px;
+        }
+        .rename-input:focus {
+            outline: none;
+            border-color: #FFA500;
+        }
+
+        .rename-button {
+            background-color: #444;
+            color: #ccc;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 3px 6px;
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
+            margin-left: 3px;
+        }
+        .rename-button:hover {
+            background-color: #555;
+            color: #fff;
+        }
+
+        #add-tab-button {
+            background-color: #333;
+            color: #ccc;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            margin-left: 5px;
+            flex-shrink: 0;
+            align-self: flex-end; /* Aligns with bottom of tabs */
+            margin-bottom: 1px; /* Adjust to align perfectly with tab border */
+        }
+        #add-tab-button:hover {
+            background-color: #444;
+            color: #fff;
+        }
+
+        .button-container {
+            background-color: #111111;
+            padding: 8px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #2a2a2a;
+            flex-shrink: 0;
+            height: 46px;
+            position: relative;
+            z-index: 1000;
+        }
+
+        #widget-buttons-group {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-grow: 1;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            max-height: 100%;
+            padding: 0 0.5rem;
+        }
+
+        #right-controls-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .category-group {
+            position: relative;
+        }
+
+        .category-button {
+            /* Uses .custom-button styles */
+        }
+
+        .category-dropdown {
+            position: absolute;
+            left: 0;
+            top: 100%;
+            margin-top: 4px;
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            z-index: 1050;
+            min-width: 220px;
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            padding: 4px 0;
+        }
+
+        .category-dropdown-item {
+            padding: 6px 12px;
+            color: #ccc;
+            font-size: 0.8125rem; /* 13px */
+            cursor: pointer;
+            white-space: nowrap;
+            display: block;
+        }
+        .category-dropdown-item:hover {
+            background-color: #383838;
+            color: #fff;
+        }
+
+        .custom-button {
+            background-color: #1a1a1a;
+            color: #FFA500;
+            border: 1px solid #FFA500;
+            padding: 5px 5px;
+            border-radius: 4px;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .custom-button:hover {
+            background-color: #2a2a2a;
+            border-color: #FFC966;
+            color: #FFC966;
+        }
+
+        .custom-button#clear-all-widgets-button {
+            background-color: #502222;
+            border-color: #773333;
+            color: #f0f0f0;
+            flex-shrink: 0;
+        }
+        .custom-button#clear-all-widgets-button:hover {
+            background-color: #6b2b2b;
+            border-color: #994444;
+            color: #ffffff;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            background-color: #000; /* Base background for the area holding tab canvases */
+            color: #f0f0f0;
+            position: relative; /* For positioning tab canvases */
+            overflow-y: hidden; /* Will be managed by updateScrollability per active canvas */
+        }
+
+        .widget-canvas-area { /* New class for individual tab canvases */
+            width: 100%;
+            height: 100%;
+            position: relative; /* Widgets will be positioned absolutely within this */
+        }
+
+
+        .widget {
+            position: absolute;
+            background-color: #1e1e1e;
+            border: 1px solid #444;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            min-width: 200px;
+            min-height: 150px;
+            overflow: hidden; /* Important for iframe containment */
+        }
+
+        .widget.locked { /* No specific style needed here anymore */ }
+
+        .widget.dragging, .widget.resizing {
+            opacity: 0.8;
+            user-select: none;
+        }
+
+        .widget-header {
+            background-color: #2a2a2a;
+            padding: 4px 8px;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #444;
+            flex-shrink: 0;
+        }
+
+        .widget.locked .widget-header { cursor: default; }
+
+        .widget-title {
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: 8px;
+            flex-grow: 1;
+        }
+
+        .widget-controls {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .widget-controls button {
+            background: none; border: none; color: #ccc; cursor: pointer;
+            padding: 3px; margin-left: 4px; display: flex;
+            align-items: center; justify-content: center;
+        }
+        .widget-controls button:hover svg { stroke: #fff; fill: #fff; }
+        .widget-controls button svg { width: 13px; height: 13px; }
+
+        .widget-content {
+            flex-grow: 1; overflow: hidden; background-color: #101010;
+        }
+
+        .widget-content iframe {
+            width: 100%; height: 100%; border: none; display: block;
+        }
+
+        .resizer {
+             /* MODIFIED: Increased size for easier touch interaction */
+            width: 16px; height: 16px; background: rgba(255,255,255,0.1);
+            position: absolute; border: 1px solid rgba(255,255,255,0.2); z-index: 10;
+        }
+        .widget.locked .resizer { display: none; }
+        /* MODIFIED: Adjusted position for new size */
+        .resizer.se { bottom: -2px; right: -2px; cursor: nwse-resize; }
+        .resizer.sw { bottom: -2px; left: -2px; cursor: nesw-resize; }
+        .resizer.ne { top: -2px; right: -2px; cursor: nesw-resize; }
+        .resizer.nw { top: -2px; left: -2px; cursor: nwse-resize; }
+
+        /* Search Bar Styles */
+        #search-widget-area {
+            margin-right: 1rem;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+        }
+
+        #search-widget-input {
+            font-family: 'Source Code Pro', monospace;
+            background-color: #1e1e1e;
+            color: #f0f0f0;
+            border: 1px solid #444;
+            height: 28px;
+            box-sizing: border-box;
+        }
+        #search-widget-input::placeholder {
+            color: #888;
+        }
+        #search-widget-input:focus {
+            border-color: #FFA500;
+            outline: none;
+            box-shadow: none;
+        }
+           #search-widget-icon-button {
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+
+        #search-suggestions-list { /* Tailwind z-50 */
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+        }
+        .suggestion-item {
+            padding: 0.375rem 0.75rem;
+            color: #ccc;
+            font-size: 0.8125rem; /* 13px */
+        }
+        .suggestion-item:hover {
+            background-color: #383838;
+            color: #fff;
+        }
+        .hidden {
+            display: none !important;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="tab-bar-container">
+        <div id="tab-bar">
+        </div>
+        <button id="add-tab-button" title="Add New Tab">+</button>
+    </div>
+
+    <div class="button-container">
+        <div id="search-widget-area" class="relative flex items-center">
+            <button id="search-widget-icon-button" class="custom-button p-1.5" title="Search Widgets (` )">
+                <svg class="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path></svg>
+            </button>
+            <input type="text" id="search-widget-input"
+                   class="hidden w-40 sm:w-48 rounded-md px-3 py-1.5 text-sm"
+                   placeholder="Ticker (`)...">
+            <div id="search-suggestions-list"
+                 class="hidden absolute left-0 top-full mt-1 w-full max-h-60 overflow-y-auto rounded-md shadow-lg z-50 py-1">
+            </div>
+        </div>
+
+        <div id="widget-buttons-group">
+            <!-- Categories will be injected here -->
+        </div>
+        
+        <div id="right-controls-group">
+            <button id="layout-manager-button" class="custom-button" title="Manage Layouts">
+                 <svg class="w-4 h-4 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                </svg>
+            </button>
+            <button id="clear-all-widgets-button" class="custom-button">Clear All</button>
+        </div>
+    </div>
+
+    <div class="main-content">
+    </div>
+
+    <script>
+        const mainContent = document.querySelector('.main-content');
+        const tabBar = document.getElementById('tab-bar');
+        const addTabButton = document.getElementById('add-tab-button');
+        const widgetButtonsGroup = document.getElementById('widget-buttons-group');
+        const layoutManagerButton = document.getElementById('layout-manager-button');
+
+        // Search Bar Elements
+        const searchWidgetArea = document.getElementById('search-widget-area');
+        const searchWidgetIconButton = document.getElementById('search-widget-icon-button');
+        const searchWidgetInput = document.getElementById('search-widget-input');
+        const searchSuggestionsList = document.getElementById('search-suggestions-list');
+
+        // These will now be managed per tab, loaded when a tab becomes active
+        let currentHighestZ = 0;
+        let currentWidgetCounter = 0;
+
+        let tabs = [];
+        let activeTabId = null;
+        let isRenamingTab = false;
+        let currentRenameCleanupFunction = null;
+
+        let activeWidgetInteractionElement = null; // Tracks the widget element being dragged/resized
+        let currentAction = null; // 'drag' or 'resize'
+        let initialPointerX, initialPointerY; // MODIFIED: Renamed for clarity (mouse/touch)
+        let initialWidgetX, initialWidgetY;
+        let initialWidgetWidth, initialWidgetHeight;
+        let currentResizerType = null;
+
+        const GITHUB_BASE_URL = 'https://xxslashbunny24xx.github.io/Terminal-Widget/';
+        const TAB_STORAGE_KEY = 'interactiveWidgetTabsLayout_v5'; // Incremented version for new structure
+        const LAYOUT_STORAGE_KEY = 'interactiveWidgetUserLayouts_v1';
+
+        const lockedIconSVG = `<svg viewBox="0 0 24 24" fill="#FFFFFF" stroke="none"><circle cx="12" cy="12" r="7"/></svg>`;
+        const unlockedIconSVG = `<svg viewBox="0 0 24 24" fill="transparent" stroke="#FFFFFF" stroke-width="2"><circle cx="12" cy="12" r="7"/></svg>`;
+
+        const widgetDataList = [];
+
+        const widgetCategories = [
+            {
+                name: "Charting", id: "charting",
+                widgets: [
+                    { ticker: "CHRT", htmlFile: "Chart.html", description: "Live Chart" },
+                    { ticker: "QTMN", htmlFile: "Quote Monitor.html", description: "Quote Monitor" }
+                ]
+            },
+            {
+                name: "Market News", id: "marketnews",
+                widgets: [
+                    { ticker: "MKTH", htmlFile: "Market Headline.html", description: "Market Headline" },
+                    { ticker: "NWSA", htmlFile: "News Article.html", description: "News Article" },
+                    { ticker: "BBYL", htmlFile: "Bloomberg Youtube.html", description: "Livestream TV" },
+                    { ticker: "YPBB", htmlFile: "Youtube Video Playlist.html", description: "Bloomberg Playlist" },
+                    { ticker: "ECNC", htmlFile: "Economic Calendar.html", description: "Economic Calendar" }
+                ]
+            },
+             {
+                name: "Market Research", id: "marketresearch",
+                widgets: [
+                    { ticker: "BARS", htmlFile: "Bank Research.html", description: "Bank Research" },
+                    { ticker: "CTRK", htmlFile: "Catalyst Tracker.html", description: "Catalyst Tracker" },
+                    { ticker: "CTSX", htmlFile: "Catalyst Explorer.html", description: "Catalyst Explorer" },
+                    { ticker: "SCRN", htmlFile: "Market Screener.html", description: "Market Screener" },
+                    { ticker: "HEAT", htmlFile: "Market Heatmap.html", description: "Market Heatmap" }
+                ]
+            },
+            {
+                name: "Central Bank", id: "centralbank",
+                widgets: [
+                    { ticker: "IRFC", htmlFile: "Interest Rate Forecast.html", description: "Interest Rate Forecast" },
+                    { ticker: "CBPY", htmlFile: "CB Policy Statement.html", description: "Central Bank Policy Statement" },
+                    { ticker: "CBPT", htmlFile: "CB Policy Table.html", description: "Central Bank Policy Table" },
+                    { ticker: "YLDC", htmlFile: "Yield Curve.html", description: "Yield Curve" }
+                ]
+            },
+            {
+                name: "Macro Data", id: "macrodata",
+                widgets: [
+                    { ticker: "MCRD", htmlFile: "Macroeconomic Data.html", description: "Macroeconomic Data" },
+                    { ticker: "MKFC", htmlFile: "Market Forecast.html", description: "Market Forecast" }
+                ]
+            },
+             {
+                name: "Portfolio Management", id: "portfoliomanagement",
+                widgets: [
+                    { ticker: "PSCR", htmlFile: "Position Size Calculator.html", description: "Position Size Calculator" },
+                    { ticker: "CPCR", htmlFile: "Compounding Calculator.html", description: "Compounding Calculator" },
+                    { ticker: "PVXC", htmlFile: "Volatility Test.html", description: "Portfolio Volatility Simulator" }
+                ]
+            },
+            {
+                name: "Market Participant", id: "marketparticipant",
+                widgets: [
+                    { ticker: "MPCT", htmlFile: "Market Participant COT.html", description: "CFTC Market Participant" },
+                    { ticker: "MPRT", htmlFile: "Market Participant Retail.html", description: "Retail Trader Market Participant" },
+                    { ticker: "RTTC", htmlFile: "Retail Trader.html", description: "Retail Trader Chart" },
+                    { ticker: "RTCT", htmlFile: "Retail Trader Table.html", description: "Retail Trader Table" },
+                    { ticker: "CFCT", htmlFile: "CFTC COT Table.html", description: "COT Table" },
+                    { ticker: "CFTC", htmlFile: "CFTC COT.html", description: "COT Chart" }
+                ]
+            }
+        ];
+        
+        // --- PREDEFINED LAYOUTS ---
+        const predefinedLayouts = [
+            {
+                id: "predefined-dashboard",
+                name: "Dashboard",
+                widgets: [
+                    { name: "Live Chart", htmlFile: "Chart.html", options: { left: '10px', top: '10px', width: '660px', height: '400px' } },
+                    { name: "Catalyst Explorer", htmlFile: "Catalyst Explorer.html", options: { left: '10px', top: '420px', width: '660px', height: '564px' } },
+                    { name: "CFTC - COTC Positioning Explorer", htmlFile: "CFTC COT.html", options: { left: '675px', top: '10px', width: '750px', height: '470px' } },
+                    { name: "Retail Trader Positioning Explorer", htmlFile: "Retail Trader.html", options: { left: '675px', top: '485px', width: '750px', height: '500px' } },
+                    { name: "Economic Calendar", htmlFile: "Economic Calendar.html", options: { left: '1430px', top: '10px', width: '480px', height: '974px' } }
+                ]
+            },
+            {
+                id: "predefined-central-bank",
+                name: "Central Bank",
+                widgets: [
+                    { name: "Live Chart", htmlFile: "Chart.html", options: { left: '10px', top: '10px', width: '450px', height: '400px' } },
+                    { name: "Market Headline", htmlFile: "Market Headline.html", options: { left: '10px', top: '420px', width: '450px', height: '564px' } },
+                    { name: "Yield Curve", htmlFile: "Yield Curve.html", options: { left: '470px', top: '10px', width: '470px', height: '400px' } },
+                    { name: "Interest Rate Forecast", htmlFile: "Interest Rate Forecast.html", options: { left: '470px', top: '420px', width: '470px', height: '564px' } },
+                    { name: "Central Bank Policy Table", htmlFile: "CB Policy Table.html", options: { left: '950px', top: '10px', width: '960px', height: '350px' } },
+                    { name: "Central Bank Policy Statement", htmlFile: "CB Policy Statement.html", options: { left: '950px', top: '370px', width: '960px', height: '614px' } }
+                ]
+            },
+            {
+                id: "predefined-market-news",
+                name: "Market News",
+                widgets: [
+                    { name: "Catalyst Explorer", htmlFile: "Catalyst Explorer.html", options: { left: '10px', top: '10px', width: '450px', height: '974px' } },
+                    { name: "News Articles", htmlFile: "News Article.html", options: { left: '470px', top: '10px', width: '450px', height: '974px' } },
+                    { name: "Finance Livestream - Bloomberg TV", htmlFile: "Bloomberg Youtube.html", options: { left: '930px', top: '10px', width: '480px', height: '400px' } },
+                    { name: "Bloomberg Video Feed", htmlFile: "Youtube Video Playlist.html", options: { left: '930px', top: '420px', width: '480px', height: '564px' } },
+                    { name: "Economic Calendar", htmlFile: "Economic Calendar.html", options: { left: '1420px', top: '10px', width: '490px', height: '974px' } }
+                ]
+            },
+            {
+                id: "predefined-macro",
+                name: "Macro",
+                widgets: [
+                    { name: "Macroeconomic Data", htmlFile: "Macroeconomic Data.html", options: { left: '10px', top: '10px', width: '850px', height: '974px' } },
+                    { name: "Market Forecast", htmlFile: "Market Forecast.html", options: { left: '870px', top: '10px', width: '500px', height: '500px' } },
+                    { name: "Central Bank Policy Table", htmlFile: "CB Policy Table.html", options: { left: '1380px', top: '10px', width: '530px', height: '477px' } },
+                    { name: "Yield Curve", htmlFile: "Yield Curve.html", options: { left: '870px', top: '520px', width: '1040px', height: '464px' } }
+                ]
+            },
+            {
+                id: "predefined-market-participant",
+                name: "Market Participant",
+                widgets: [
+                    { name: "CFTC - COTC Positioning Explorer", htmlFile: "CFTC COT.html", options: { left: '10px', top: '10px', width: '700px', height: '400px' } },
+                    { name: "Retail Trader Positioning Explorer", htmlFile: "Retail Trader.html", options: { left: '10px', top: '420px', width: '700px', height: '564px' } },
+                    { name: "COT Overview Dashboard", htmlFile: "CFTC COT Table.html", options: { left: '720px', top: '10px', width: '700px', height: '300px' } },
+                    { name: "Retail Trader Market Participant", htmlFile: "Market Participant Retail.html", options: { left: '720px', top: '320px', width: '700px', height: '300px' } },
+                    { name: "COT Historical Data Table", htmlFile: "CFTC COT Table.html", options: { left: '720px', top: '630px', width: '700px', height: '354px' } },
+                    { name: "Live Chart", htmlFile: "Chart.html", options: { left: '1430px', top: '10px', width: '480px', height: '600px' } },
+                    { name: "Retail Historical Data Table", htmlFile: "Retail Trader Table.html", options: { left: '1430px', top: '620px', width: '480px', height: '364px' } }
+                ]
+            },    
+        ];
+
+        function getActiveWidgetCanvas() {
+            if (!activeTabId) return null;
+            return document.getElementById(`widget-canvas-${activeTabId}`);
+        }
+
+        function populateWidgetDataList() {
+            widgetDataList.length = 0;
+            const addedTickers = new Set();
+            widgetCategories.forEach(category => {
+                category.widgets.forEach(widget => {
+                    if (!addedTickers.has(widget.ticker)) {
+                        widgetDataList.push({
+                            ticker: widget.ticker,
+                            name: widget.description,
+                            originalName: widget.ticker,
+                            htmlFile: widget.htmlFile
+                        });
+                        addedTickers.add(widget.ticker);
+                    }
+                });
+            });
+        }
+
+        function renderTopButtons() {
+            widgetButtonsGroup.innerHTML = ''; // Clear previous buttons
+            
+            // Render Widget Category Buttons
+            widgetCategories.forEach(category => {
+                const categoryGroup = document.createElement('div');
+                categoryGroup.className = 'category-group';
+                const categoryButton = document.createElement('button');
+                categoryButton.className = 'custom-button category-button';
+                categoryButton.textContent = category.name;
+                categoryButton.dataset.category = category.id;
+                categoryButton.title = `Show ${category.name}`;
+                const dropdown = document.createElement('div');
+                dropdown.className = 'category-dropdown hidden';
+                dropdown.dataset.dropdownFor = category.id;
+                category.widgets.forEach(widget => {
+                    const item = document.createElement('div');
+                    item.className = 'category-dropdown-item';
+                    item.textContent = `#${widget.ticker} - ${widget.description}`;
+                    item.dataset.ticker = widget.ticker;
+                    item.dataset.htmlFile = widget.htmlFile;
+                    item.title = `Create ${widget.description} widget`;
+                    item.addEventListener('click', () => {
+                        if (isRenamingTab) return;
+                        createWidget(widget.description, widget.htmlFile, {}, true, getActiveWidgetCanvas());
+                        dropdown.classList.add('hidden');
+                    });
+                    dropdown.appendChild(item);
+                });
+                categoryButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    if (isRenamingTab) return;
+                    const isHidden = dropdown.classList.contains('hidden');
+                    document.querySelectorAll('.category-dropdown:not(.hidden)').forEach(d => {
+                        if (d !== dropdown) d.classList.add('hidden');
+                    });
+                    if (isHidden) {
+                        dropdown.classList.remove('hidden');
+                    } else {
+                        dropdown.classList.add('hidden');
+                    }
+                });
+                categoryGroup.appendChild(categoryButton);
+                categoryGroup.appendChild(dropdown);
+                widgetButtonsGroup.appendChild(categoryGroup);
+            });
+        }
+
+        function activateSearch() {
+            if (isRenamingTab) return;
+            searchWidgetIconButton.classList.add('hidden');
+            searchWidgetInput.classList.remove('hidden');
+            searchWidgetInput.focus();
+            displaySuggestions();
+        }
+
+        function deactivateSearch() {
+            searchWidgetInput.value = '';
+            searchWidgetInput.classList.add('hidden');
+            searchWidgetIconButton.classList.remove('hidden');
+            searchSuggestionsList.classList.add('hidden');
+            searchSuggestionsList.innerHTML = '';
+        }
+
+        function displaySuggestions(filterQuery = '') {
+            searchSuggestionsList.innerHTML = '';
+            const query = filterQuery.toLowerCase();
+            const filtered = widgetDataList.filter(widget =>
+                widget.ticker.toLowerCase().includes(query) ||
+                widget.name.toLowerCase().includes(query)
+            );
+            const sourceList = filterQuery ? filtered : widgetDataList;
+            sourceList.slice(0, 10).forEach(widget => addSuggestionItem(widget));
+            if (searchSuggestionsList.children.length > 0) {
+                searchSuggestionsList.classList.remove('hidden');
+            } else {
+                searchSuggestionsList.classList.add('hidden');
+            }
+        }
+
+        function addSuggestionItem(widget) {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item cursor-pointer';
+            item.textContent = `#${widget.ticker} - ${widget.name}`;
+            item.dataset.ticker = widget.ticker;
+            item.addEventListener('click', () => {
+                triggerWidgetCreation(widget.ticker);
+                deactivateSearch();
+            });
+            searchSuggestionsList.appendChild(item);
+        }
+
+        function triggerWidgetCreation(ticker) {
+            const widgetFound = widgetDataList.find(w => w.ticker.toUpperCase() === ticker.toUpperCase());
+            if (widgetFound) {
+                createWidget(widgetFound.name, widgetFound.htmlFile, {}, true, getActiveWidgetCanvas());
+            } else {
+                showCustomModal(`Widget with ticker "${ticker}" not found.`);
+            }
+        }
+
+        searchWidgetIconButton.addEventListener('click', activateSearch);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '`' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                if (searchWidgetInput.classList.contains('hidden')) {
+                    activateSearch();
+                } else {
+                    searchWidgetInput.focus();
+                }
+            }
+        });
+        searchWidgetInput.addEventListener('input', () => displaySuggestions(searchWidgetInput.value));
+        searchWidgetInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (searchWidgetInput.value.trim()) {
+                    const firstSuggestion = searchSuggestionsList.querySelector('.suggestion-item');
+                    if (firstSuggestion && firstSuggestion.dataset.ticker.toLowerCase() === searchWidgetInput.value.trim().toLowerCase()) {
+                        triggerWidgetCreation(firstSuggestion.dataset.ticker);
+                    } else { // Allow direct ticker input even if not top suggestion
+                         triggerWidgetCreation(searchWidgetInput.value.trim());
+                    }
+                }
+                deactivateSearch();
+            } else if (e.key === 'Escape') {
+                deactivateSearch();
+            }
+        });
+        searchWidgetInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                if (!searchSuggestionsList.matches(':hover') && document.activeElement !== searchWidgetInput && !searchSuggestionsList.contains(document.activeElement)) {
+                    deactivateSearch();
+                }
+            }, 150);
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!searchWidgetArea.contains(event.target) && !searchWidgetInput.classList.contains('hidden') && !searchSuggestionsList.contains(event.target)) {
+                deactivateSearch();
+            }
+            if (isRenamingTab && currentRenameCleanupFunction) {
+                const activeTabElement = tabBar.querySelector('.tab-item.renaming');
+                if (activeTabElement && !activeTabElement.contains(event.target)) {
+                    forceCancelRename();
+                }
+            }
+            document.querySelectorAll('.category-dropdown:not(.hidden)').forEach(dropdown => {
+                const categoryGroup = dropdown.closest('.category-group');
+                if (categoryGroup && !categoryGroup.contains(event.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        });
+
+        function forceCancelRename() {
+            if (typeof currentRenameCleanupFunction === 'function') {
+                currentRenameCleanupFunction(false); // Call cleanup with 'shouldSave' as false
+            }
+        }
+
+        // --- Tab and Layout Management ---
+        function saveLayout() { // Saves the currently active tab's DOM state to the `tabs` array, then saves all to localStorage
+            const activeTabObject = tabs.find(t => t.id === activeTabId);
+            const activeCanvas = getActiveWidgetCanvas();
+
+            if (activeTabObject && activeCanvas) {
+                activeTabObject.widgets = [];
+                activeCanvas.querySelectorAll('.widget').forEach(widgetEl => {
+                    activeTabObject.widgets.push({
+                        id: widgetEl.id,
+                        name: widgetEl.dataset.widgetName,
+                        htmlFile: widgetEl.dataset.htmlFile,
+                        left: widgetEl.style.left,
+                        top: widgetEl.style.top,
+                        width: widgetEl.style.width,
+                        height: widgetEl.style.height,
+                        zIndex: parseInt(widgetEl.style.zIndex) || 0,
+                        locked: widgetEl.dataset.locked === 'true'
+                    });
+                });
+                activeTabObject.highestZ = currentHighestZ; // currentHighestZ is already updated for the active tab
+                activeTabObject.widgetCounter = currentWidgetCounter; // Same for currentWidgetCounter
+            }
+            try {
+                localStorage.setItem(TAB_STORAGE_KEY, JSON.stringify({ tabs, activeTabId }));
+            } catch (error) {
+                console.error('Error saving layout to localStorage:', error);
+                showCustomModal('Error: Could not save layout. LocalStorage might be full or disabled.');
+            }
+        }
+
+        function loadLayout() {
+            forceCancelRename();
+            mainContent.innerHTML = ''; // Clear any existing tab canvases
+
+            let savedData;
+            try {
+                const savedDataJSON = localStorage.getItem(TAB_STORAGE_KEY);
+                if (savedDataJSON) {
+                    savedData = JSON.parse(savedDataJSON);
+                    tabs = savedData.tabs || [];
+                    activeTabId = savedData.activeTabId || null;
+                }
+            } catch (error) {
+                console.error('Error parsing layout from localStorage:', error);
+                tabs = []; activeTabId = null; // Reset on error
+                showCustomModal('Error loading layout. Previous data might be corrupted. Starting fresh.');
+            }
+
+
+            if (tabs.length === 0) {
+                const initialTabId = `tab-${Date.now()}`;
+                tabs = [{ id: initialTabId, name: 'Dashboard', widgets: [], highestZ: 0, widgetCounter: 0 }];
+                activeTabId = initialTabId;
+                // Automatically load the default layout for the first-ever tab
+                const defaultLayout = predefinedLayouts.find(l => l.name === "Dashboard");
+                if (defaultLayout) {
+                    const activeTabObject = tabs.find(t => t.id === activeTabId);
+                    activeTabObject.widgets = JSON.parse(JSON.stringify(defaultLayout.widgets.map(w => ({...w.options, name: w.name, htmlFile: w.htmlFile}))));
+                }
+            } else if (!activeTabId || !tabs.find(t => t.id === activeTabId)) {
+                activeTabId = tabs[0].id; // Default to first tab if active one is invalid
+            }
+
+            tabs.forEach(tab => {
+                const tabCanvas = document.createElement('div');
+                tabCanvas.id = `widget-canvas-${tab.id}`;
+                tabCanvas.className = 'widget-canvas-area';
+                if (tab.id !== activeTabId) {
+                    tabCanvas.style.display = 'none';
+                }
+                mainContent.appendChild(tabCanvas);
+
+                // Ensure highestZ and widgetCounter are numbers
+                tab.highestZ = Number(tab.highestZ) || 0;
+                tab.widgetCounter = Number(tab.widgetCounter) || 0;
+
+                // Create widgets for this tab
+                if (Array.isArray(tab.widgets)) {
+                    tab.widgets.forEach(widgetData => {
+                        // Pass the specific tabCanvas for widget creation
+                        createWidget(widgetData.name, widgetData.htmlFile, widgetData, false, tabCanvas);
+                    });
+                } else {
+                    tab.widgets = []; // Ensure it's an array
+                }
+            });
+
+            // Set global counters based on the truly active tab
+            const currentActiveTabObject = tabs.find(t => t.id === activeTabId);
+            if (currentActiveTabObject) {
+                currentHighestZ = currentActiveTabObject.highestZ;
+                currentWidgetCounter = currentActiveTabObject.widgetCounter;
+            } else { // Should not happen if logic above is correct
+                currentHighestZ = 0;
+                currentWidgetCounter = 0;
+            }
+
+            renderTabs();
+            updateScrollability(); // For the initially active tab
+        }
+
+
+        function renderTabs() {
+            forceCancelRename();
+            tabBar.innerHTML = '';
+            tabs.forEach(tab => {
+                const tabElement = document.createElement('div');
+                tabElement.className = 'tab-item';
+                tabElement.dataset.tabId = tab.id;
+                if (tab.id === activeTabId) {
+                    tabElement.classList.add('active');
+                }
+
+                const tabNameSpan = document.createElement('span');
+                tabNameSpan.className = 'tab-name';
+                tabNameSpan.textContent = tab.name;
+                tabNameSpan.title = "Double-click to rename";
+                tabElement.appendChild(tabNameSpan);
+
+                const renameControls = document.createElement('div');
+                renameControls.className = 'rename-controls';
+                const renameInput = document.createElement('input');
+                renameInput.type = 'text';
+                renameInput.className = 'rename-input';
+                const saveNameButton = document.createElement('button');
+                saveNameButton.className = 'rename-button rename-save-button';
+                saveNameButton.innerHTML = '&#10003;';
+                saveNameButton.title = 'Save';
+                const cancelNameButton = document.createElement('button');
+                cancelNameButton.className = 'rename-button rename-cancel-button';
+                cancelNameButton.innerHTML = '&#10005;';
+                cancelNameButton.title = 'Cancel';
+                renameControls.appendChild(renameInput);
+                renameControls.appendChild(saveNameButton);
+                renameControls.appendChild(cancelNameButton);
+                tabElement.appendChild(renameControls);
+
+                tabNameSpan.addEventListener('dblclick', () => {
+                    startInlineRename(tab, tabElement, tabNameSpan, renameInput, saveNameButton, cancelNameButton);
+                });
+
+                if (tabs.length > 1) {
+                    const closeButton = document.createElement('button');
+                    closeButton.className = 'close-tab-button';
+                    closeButton.innerHTML = '&times;';
+                    closeButton.title = 'Close Tab';
+                    closeButton.onclick = (e) => {
+                        if (isRenamingTab) return;
+                        e.stopPropagation();
+                        closeTab(tab.id);
+                    };
+                    tabElement.appendChild(closeButton);
+                }
+
+                tabElement.addEventListener('click', (e) => {
+                    if (tabElement.classList.contains('renaming')) {
+                        if (!renameControls.contains(e.target) && e.target !== renameInput) return;
+                    } else if (isRenamingTab) {
+                         return;
+                    }
+                    switchTab(tab.id);
+                });
+                tabBar.appendChild(tabElement);
+            });
+        }
+
+        function startInlineRename(tab, tabElement, tabNameSpan, renameInput, saveButton, cancelButton) {
+            forceCancelRename();
+            isRenamingTab = true;
+            tabElement.classList.add('renaming');
+            renameInput.value = tab.name;
+            renameInput.focus();
+            renameInput.select();
+            let blurTimeout;
+            const finishThisInlineRename = (shouldSaveNewName) => {
+                if (!tabElement.classList.contains('renaming')) return;
+                clearTimeout(blurTimeout);
+                const newName = renameInput.value.trim();
+                if (shouldSaveNewName && newName && newName !== tab.name) {
+                    tab.name = newName;
+                    saveLayout(); // Save changes affecting tab name
+                }
+                tabNameSpan.textContent = tab.name;
+                tabElement.classList.remove('renaming');
+                isRenamingTab = false;
+                currentRenameCleanupFunction = null;
+                saveButton.removeEventListener('click', handleSave);
+                cancelButton.removeEventListener('click', handleCancel);
+                renameInput.removeEventListener('keydown', handleKeydown);
+                renameInput.removeEventListener('blur', handleBlurEvent);
+            };
+            currentRenameCleanupFunction = finishThisInlineRename;
+            const handleSave = () => finishThisInlineRename(true);
+            const handleCancel = () => finishThisInlineRename(false);
+            const handleKeydown = (event) => {
+                if (event.key === 'Enter') { event.preventDefault(); handleSave(); }
+                else if (event.key === 'Escape') { handleCancel(); }
+            };
+            const handleBlurEvent = () => {
+                blurTimeout = setTimeout(() => {
+                    if (isRenamingTab && document.activeElement !== renameInput &&
+                        document.activeElement !== saveButton && document.activeElement !== cancelButton) {
+                        const activeTabItem = tabBar.querySelector('.tab-item.renaming');
+                        if(activeTabItem && activeTabItem.contains(document.activeElement)) return;
+                        handleCancel();
+                    }
+                }, 100);
+            };
+            saveButton.addEventListener('click', handleSave);
+            cancelButton.addEventListener('click', handleCancel);
+            renameInput.addEventListener('keydown', handleKeydown);
+            renameInput.addEventListener('blur', handleBlurEvent);
+        }
+
+        function switchTab(tabIdToSwitchTo) {
+            if (tabIdToSwitchTo === activeTabId || isRenamingTab) return;
+            forceCancelRename();
+
+            saveLayout(); // Save the state of the tab we are switching FROM
+
+            const oldActiveCanvas = getActiveWidgetCanvas();
+            if (oldActiveCanvas) {
+                oldActiveCanvas.style.display = 'none';
+            }
+
+            activeTabId = tabIdToSwitchTo; // Update activeTabId
+
+            const newActiveCanvas = getActiveWidgetCanvas();
+            if (newActiveCanvas) {
+                newActiveCanvas.style.display = 'block'; 
+            } else {
+                console.error("CRITICAL: Switched to a tab with no canvas:", activeTabId);
+            }
+
+            const newActiveTabObject = tabs.find(t => t.id === activeTabId);
+            if (newActiveTabObject) {
+                currentHighestZ = newActiveTabObject.highestZ || 0;
+                currentWidgetCounter = newActiveTabObject.widgetCounter || 0;
+            } else { // Should also not happen
+                currentHighestZ = 0;
+                currentWidgetCounter = 0;
+            }
+
+            renderTabs(); // Re-render tab buttons for active state styling
+            updateScrollability(); // Update scroll for the new active canvas
+        }
+
+        function addNewTab() {
+            if (isRenamingTab) return;
+            forceCancelRename();
+            saveLayout(); // Save current layout before adding new tab
+
+            const newTabId = `tab-${Date.now()}`;
+            const newTabName = `Workspace ${tabs.length + 1}`;
+            const newTabObject = { id: newTabId, name: newTabName, widgets: [], highestZ: 0, widgetCounter: 0 };
+            tabs.push(newTabObject);
+
+            // Create canvas for the new tab
+            const newTabCanvas = document.createElement('div');
+            newTabCanvas.id = `widget-canvas-${newTabId}`;
+            newTabCanvas.className = 'widget-canvas-area';
+            newTabCanvas.style.display = 'none'; // Initially hidden, switchTab will show it
+            mainContent.appendChild(newTabCanvas);
+
+            switchTab(newTabId); // This will switch to the new empty tab
+            
+            // The line that loaded the default layout is now removed. The tab will be blank.
+            
+            saveLayout(); // Save the new empty tab state
+        }
+
+
+        function closeTab(tabIdToClose) {
+            if (isRenamingTab) return;
+            forceCancelRename();
+            if (tabs.length <= 1) {
+                showCustomModal("Cannot close the last tab.");
+                return;
+            }
+            const tabIndex = tabs.findIndex(t => t.id === tabIdToClose);
+            if (tabIndex === -1) return;
+
+            showCustomConfirm(`Are you sure you want to close tab "${tabs[tabIndex].name}"?`, () => {
+                // Remove the tab's canvas from DOM
+                const canvasToRemove = document.getElementById(`widget-canvas-${tabIdToClose}`);
+                if (canvasToRemove) {
+                    canvasToRemove.remove();
+                }
+
+                tabs.splice(tabIndex, 1); // Remove tab from array
+
+                if (activeTabId === tabIdToClose) {
+                    activeTabId = tabs[Math.max(0, tabIndex - 1)].id;
+                    const newActiveCanvas = getActiveWidgetCanvas();
+                    if (newActiveCanvas) newActiveCanvas.style.display = 'block';
+
+                    const newActiveTabObject = tabs.find(t => t.id === activeTabId);
+                    if (newActiveTabObject) {
+                        currentHighestZ = newActiveTabObject.highestZ || 0;
+                        currentWidgetCounter = newActiveTabObject.widgetCounter || 0;
+                    }
+                     updateScrollability();
+                }
+                renderTabs();
+                saveLayout();
+            });
+        }
+        addTabButton.addEventListener('click', addNewTab);
+
+
+        // --- Widget Creation and Manipulation ---
+        function createWidget(widgetDisplayName, htmlFile, options = {}, fromButton = true, targetCanvasElement) {
+            const currentTargetCanvas = targetCanvasElement || getActiveWidgetCanvas();
+            if (!currentTargetCanvas) {
+                console.error("Target canvas not found for creating widget. ActiveTabID:", activeTabId);
+                return; // Cannot create widget without a canvas
+            }
+
+            const activeTabObject = tabs.find(t => t.id === activeTabId); // Get current active tab data
+
+            if (fromButton && activeTabObject) { // If it's a new widget created by user action
+                activeTabObject.widgetCounter = (activeTabObject.widgetCounter || 0) + 1;
+                currentWidgetCounter = activeTabObject.widgetCounter; // Update global currentWidgetCounter
+
+                activeTabObject.highestZ = (activeTabObject.highestZ || 0) + 1;
+                currentHighestZ = activeTabObject.highestZ; // Update global currentHighestZ
+            } 
+
+
+            const widget = document.createElement('div');
+            widget.className = 'widget';
+            widget.id = options.id || `widget-${activeTabId}-${currentWidgetCounter}`;
+
+            const idParts = widget.id.split('-');
+            const counterForPositioning = parseInt(idParts[idParts.length - 1] || 0);
+
+            widget.style.left = options.left || `${(counterForPositioning % 10) * 20 + 20}px`;
+            widget.style.top = options.top || `${Math.floor(counterForPositioning / 10) * 20 + 20}px`;
+            widget.style.width = options.width || '400px';
+            widget.style.height = options.height || '300px';
+            widget.style.zIndex = String(options.zIndex || currentHighestZ); // zIndex from options or current tab's highestZ
+
+            widget.dataset.locked = options.locked ? 'true' : 'false';
+            widget.dataset.widgetName = widgetDisplayName;
+            widget.dataset.htmlFile = htmlFile;
+            if (options.locked) widget.classList.add('locked');
+
+            const header = document.createElement('div');
+            header.className = 'widget-header';
+            
+            // ADDED: Touch event listeners for mobile drag
+            header.addEventListener('mousedown', startDrag);
+            header.addEventListener('touchstart', startDrag, { passive: false });
+
+
+            const title = document.createElement('span');
+            title.className = 'widget-title';
+            title.textContent = widgetDisplayName;
+
+            const controls = document.createElement('div');
+            controls.className = 'widget-controls';
+            const lockButton = document.createElement('button');
+            lockButton.title = 'Lock/Unlock Widget';
+            lockButton.innerHTML = widget.dataset.locked === 'true' ? lockedIconSVG : unlockedIconSVG;
+            lockButton.onclick = toggleLock;
+            const deleteButton = document.createElement('button');
+            deleteButton.title = 'Delete Widget';
+            deleteButton.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+            deleteButton.onclick = deleteWidgetFromButton; // Renamed to avoid conflict
+
+            controls.appendChild(lockButton);
+            controls.appendChild(deleteButton);
+            header.appendChild(title);
+            header.appendChild(controls);
+
+            const content = document.createElement('div');
+            content.className = 'widget-content';
+            const iframe = document.createElement('iframe');
+            iframe.src = `${GITHUB_BASE_URL}${encodeURIComponent(htmlFile)}`;
+            iframe.setAttribute('allowfullscreen', '');
+            if (currentAction === 'drag' || currentAction === 'resize') { 
+                iframe.style.pointerEvents = 'none';
+            }
+            content.appendChild(iframe);
+
+            widget.appendChild(header);
+            widget.appendChild(content);
+
+            ['se', 'sw', 'ne', 'nw'].forEach(type => {
+                const resizer = document.createElement('div');
+                resizer.className = `resizer ${type}`;
+                // ADDED: Touch event listeners for mobile resize
+                resizer.addEventListener('mousedown', (e) => startResize(e, type));
+                resizer.addEventListener('touchstart', (e) => startResize(e, type), { passive: false });
+                widget.appendChild(resizer);
+            });
+            
+            // ADDED: Touch event listeners for bringing widget to front
+            widget.addEventListener('mousedown', bringToFront);
+            widget.addEventListener('touchstart', bringToFront, { passive: false });
+
+            currentTargetCanvas.appendChild(widget);
+
+            if (fromButton) {
+                saveLayout(); // Save after creating a new widget
+            }
+        }
+
+
+        function bringToFront(event) {
+            // Check if the event is a touch event with more than one finger (e.g., pinch-zoom gesture)
+            if (event.touches && event.touches.length > 1) {
+                return;
+            }
+            const widget = event.currentTarget;
+            if (widget.dataset.locked === 'true' || isRenamingTab) return;
+
+            const activeTabObject = tabs.find(t => t.id === activeTabId);
+            if (!activeTabObject) return;
+
+            const oldZIndex = parseInt(widget.style.zIndex);
+            if (oldZIndex < currentHighestZ) {
+                currentHighestZ++; // Increment for this tab
+                activeTabObject.highestZ = currentHighestZ; // Store it back
+                widget.style.zIndex = currentHighestZ;
+                saveLayout();
+            } else if (getActiveWidgetCanvas().querySelectorAll('.widget').length === 1 && oldZIndex === 0) {
+                 currentHighestZ = Math.max(currentHighestZ, 1);
+                 activeTabObject.highestZ = currentHighestZ;
+                 widget.style.zIndex = currentHighestZ;
+                 saveLayout();
+            }
+        }
+
+
+        function setIframesPointerEvents(value) {
+            const activeCanvas = getActiveWidgetCanvas();
+            if (!activeCanvas) return;
+            const iframes = activeCanvas.querySelectorAll('.widget-content iframe');
+            iframes.forEach(iframe => {
+                iframe.style.pointerEvents = value;
+            });
+        }
+
+        // MODIFIED: Unified startDrag function
+        function startDrag(event) {
+            // Prevent drag on right-click for mouse
+            if (event.type === 'mousedown' && event.button !== 0) return;
+            
+            if (event.target.closest('.widget-controls button') || isRenamingTab) return;
+            activeWidgetInteractionElement = this.closest('.widget');
+            if (!activeWidgetInteractionElement || activeWidgetInteractionElement.dataset.locked === 'true') return;
+            
+            // This prevents default touch behaviors like scrolling
+            event.preventDefault();
+            
+            bringToFront({currentTarget: activeWidgetInteractionElement, touches: event.touches});
+
+            currentAction = 'drag';
+            activeWidgetInteractionElement.classList.add('dragging');
+            
+            // Get initial pointer coordinates (works for both touch and mouse)
+            const touch = event.touches ? event.touches[0] : null;
+            initialPointerX = touch ? touch.clientX : event.clientX;
+            initialPointerY = touch ? touch.clientY : event.clientY;
+
+            initialWidgetX = activeWidgetInteractionElement.offsetLeft;
+            initialWidgetY = activeWidgetInteractionElement.offsetTop;
+            setIframesPointerEvents('none');
+
+            // Add listeners for both mouse and touch
+            document.addEventListener('mousemove', performDragOrResize);
+            document.addEventListener('mouseup', stopDragOrResize);
+            document.addEventListener('touchmove', performDragOrResize, { passive: false });
+            document.addEventListener('touchend', stopDragOrResize);
+            
+            // Add a class to the body to prevent text selection on mobile
+            document.body.classList.add('dragging-touch');
+        }
+        
+        // MODIFIED: Unified startResize function
+        function startResize(event, resizerType) {
+            if (event.type === 'mousedown' && event.button !== 0) return;
+            if (isRenamingTab) return;
+            activeWidgetInteractionElement = event.target.closest('.widget');
+            if (!activeWidgetInteractionElement || activeWidgetInteractionElement.dataset.locked === 'true') return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            
+            bringToFront({currentTarget: activeWidgetInteractionElement, touches: event.touches});
+            
+            currentAction = 'resize';
+            currentResizerType = resizerType;
+            activeWidgetInteractionElement.classList.add('resizing');
+            
+            // Get initial pointer coordinates
+            const touch = event.touches ? event.touches[0] : null;
+            initialPointerX = touch ? touch.clientX : event.clientX;
+            initialPointerY = touch ? touch.clientY : event.clientY;
+            
+            initialWidgetX = activeWidgetInteractionElement.offsetLeft;
+            initialWidgetY = activeWidgetInteractionElement.offsetTop;
+            initialWidgetWidth = activeWidgetInteractionElement.offsetWidth;
+            initialWidgetHeight = activeWidgetInteractionElement.offsetHeight;
+            setIframesPointerEvents('none');
+            
+            // Add listeners for both mouse and touch
+            document.addEventListener('mousemove', performDragOrResize);
+            document.addEventListener('mouseup', stopDragOrResize);
+            document.addEventListener('touchmove', performDragOrResize, { passive: false });
+            document.addEventListener('touchend', stopDragOrResize);
+            
+            document.body.classList.add('dragging-touch');
+        }
+
+        // MODIFIED: Unified performDragOrResize function
+        function performDragOrResize(event) {
+            if (!activeWidgetInteractionElement) return;
+            event.preventDefault();
+            
+            // Get current pointer coordinates (works for both touch and mouse)
+            // For touchend, `touches` is empty, so use `changedTouches`
+            const touch = event.touches && event.touches.length > 0 ? event.touches[0] : event.changedTouches ? event.changedTouches[0] : null;
+            const currentX = touch ? touch.clientX : event.clientX;
+            const currentY = touch ? touch.clientY : event.clientY;
+
+            const deltaX = currentX - initialPointerX;
+            const deltaY = currentY - initialPointerY;
+
+            if (currentAction === 'drag') {
+                activeWidgetInteractionElement.style.left = `${initialWidgetX + deltaX}px`;
+                activeWidgetInteractionElement.style.top = `${initialWidgetY + deltaY}px`;
+            } else if (currentAction === 'resize') {
+                let newWidth = initialWidgetWidth;
+                let newHeight = initialWidgetHeight;
+                let newLeft = initialWidgetX;
+                let newTop = initialWidgetY;
+
+                if (currentResizerType.includes('e')) newWidth = initialWidgetWidth + deltaX;
+                if (currentResizerType.includes('w')) { newWidth = initialWidgetWidth - deltaX; newLeft = initialWidgetX + deltaX; }
+                if (currentResizerType.includes('s')) newHeight = initialWidgetHeight + deltaY;
+                if (currentResizerType.includes('n')) { newHeight = initialWidgetHeight - deltaY; newTop = initialWidgetY + deltaY; }
+
+                const minWidth = parseInt(getComputedStyle(activeWidgetInteractionElement).minWidth) || 150;
+                const minHeight = parseInt(getComputedStyle(activeWidgetInteractionElement).minHeight) || 100;
+
+                if (newWidth >= minWidth) {
+                    activeWidgetInteractionElement.style.width = `${newWidth}px`;
+                    if (currentResizerType.includes('w')) activeWidgetInteractionElement.style.left = `${newLeft}px`;
+                }
+                if (newHeight >= minHeight) {
+                    activeWidgetInteractionElement.style.height = `${newHeight}px`;
+                    if (currentResizerType.includes('n')) activeWidgetInteractionElement.style.top = `${newTop}px`;
+                }
+            }
+        }
+        
+        // MODIFIED: Unified stopDragOrResize function
+        function stopDragOrResize() {
+            if (activeWidgetInteractionElement) {
+                activeWidgetInteractionElement.classList.remove('dragging', 'resizing');
+            }
+            setIframesPointerEvents('auto');
+            activeWidgetInteractionElement = null;
+            currentAction = null;
+            currentResizerType = null;
+            
+            // Remove all listeners
+            document.removeEventListener('mousemove', performDragOrResize);
+            document.removeEventListener('mouseup', stopDragOrResize);
+            document.removeEventListener('touchmove', performDragOrResize);
+            document.removeEventListener('touchend', stopDragOrResize);
+
+            document.body.classList.remove('dragging-touch');
+            
+            saveLayout();
+            updateScrollability();
+        }
+
+        function toggleLock(event) {
+            if (isRenamingTab) return;
+            const widget = event.target.closest('.widget');
+            if (!widget) return;
+            const isCurrentlyLocked = widget.dataset.locked === 'true';
+            const newLockState = !isCurrentlyLocked;
+            widget.dataset.locked = newLockState ? 'true' : 'false';
+            widget.classList.toggle('locked', newLockState);
+            const lockButton = widget.querySelector('.widget-controls button:first-child');
+            lockButton.innerHTML = newLockState ? lockedIconSVG : unlockedIconSVG;
+            saveLayout();
+        }
+
+        function deleteWidgetFromButton(event) { // Renamed from deleteWidget
+            if (isRenamingTab) return;
+            const widget = event.target.closest('.widget');
+            if (widget && widget.parentElement) {
+                widget.parentElement.removeChild(widget);
+                saveLayout();
+                updateScrollability();
+            }
+        }
+
+        function clearAllWidgetsForActiveTab() {
+            if (isRenamingTab) return;
+            const activeCanvas = getActiveWidgetCanvas();
+            const activeTabObject = tabs.find(t => t.id === activeTabId);
+
+            if (!activeCanvas || !activeTabObject) {
+                showCustomModal("No active tab or canvas found to clear.");
+                return;
+            }
+
+            showCustomConfirm("Are you sure you want to clear all widgets in this tab? This action cannot be undone.", () => {
+                activeTabObject.widgets = [];
+                activeTabObject.highestZ = 0;
+                activeTabObject.widgetCounter = 0;
+                currentHighestZ = 0; // Reset global trackers for this tab's context
+                currentWidgetCounter = 0;
+                activeCanvas.innerHTML = ''; // Clear the specific tab's canvas
+                saveLayout();
+                updateScrollability();
+            });
+        }
+        document.getElementById('clear-all-widgets-button').addEventListener('click', clearAllWidgetsForActiveTab);
+
+
+        function updateScrollability() {
+            const activeCanvas = getActiveWidgetCanvas();
+            if (!activeCanvas || !mainContent) {
+                 if(mainContent) mainContent.style.overflowY = 'hidden'; // Default if no active canvas
+                return;
+            }
+
+            let maxBottom = 0;
+            const widgetsOnCanvas = activeCanvas.querySelectorAll('.widget');
+
+            if (widgetsOnCanvas.length === 0) {
+                mainContent.style.overflowY = 'hidden';
+                return;
+            }
+
+            widgetsOnCanvas.forEach(widget => {
+                const bottomEdge = widget.offsetTop + widget.offsetHeight;
+                if (bottomEdge > maxBottom) maxBottom = bottomEdge;
+            });
+
+            if (maxBottom > mainContent.clientHeight) {
+                mainContent.style.overflowY = 'auto';
+            } else {
+                mainContent.style.overflowY = 'hidden';
+            }
+        }
+
+        function showCustomModal(message, onOk) {
+            const existingModal = document.getElementById('customModalOverlay');
+            if (existingModal) document.body.removeChild(existingModal);
+            const modalOverlay = document.createElement('div');
+            modalOverlay.id = 'customModalOverlay';
+            modalOverlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 10000;`;
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `background-color: #2a2a2a; color: #f0f0f0; padding: 25px; border-radius: 8px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.5); max-width: 400px; font-family: 'Source Code Pro', monospace;`;
+            const messageP = document.createElement('p');
+            messageP.textContent = message;
+            messageP.style.marginBottom = '20px';
+            messageP.style.fontSize = '14px';
+            const okButton = document.createElement('button');
+            okButton.textContent = 'OK';
+            okButton.style.cssText = `background-color: #FFA500; color: #000; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 13px; font-family: 'Source Code Pro', monospace;`;
+            okButton.onclick = () => {
+                document.body.removeChild(modalOverlay);
+                if (onOk) onOk();
+            };
+            modalContent.appendChild(messageP);
+            modalContent.appendChild(okButton);
+            modalOverlay.appendChild(modalContent);
+            document.body.appendChild(modalOverlay);
+        }
+
+        function showCustomConfirm(message, onConfirm) {
+            const existingModal = document.getElementById('customConfirmModalOverlay');
+            if (existingModal) document.body.removeChild(existingModal);
+            const modalOverlay = document.createElement('div');
+            modalOverlay.id = 'customConfirmModalOverlay';
+            modalOverlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 10000;`;
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `background-color: #2a2a2a; color: #f0f0f0; padding: 25px; border-radius: 8px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.5); max-width: 400px; font-family: 'Source Code Pro', monospace;`;
+            const messageP = document.createElement('p');
+            messageP.textContent = message;
+            messageP.style.marginBottom = '20px';
+            messageP.style.fontSize = '14px';
+            const buttonContainerEl = document.createElement('div');
+            buttonContainerEl.style.display = 'flex';
+            buttonContainerEl.style.justifyContent = 'space-around';
+            buttonContainerEl.style.gap = '10px';
+            const confirmButton = document.createElement('button');
+            confirmButton.textContent = 'Yes';
+            confirmButton.style.cssText = `background-color: #FFA500; color: #000; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 13px; flex-grow: 1; font-family: 'Source Code Pro', monospace;`;
+            confirmButton.onclick = () => {
+                document.body.removeChild(modalOverlay);
+                onConfirm();
+            };
+            const cancelButton = document.createElement('button');
+            cancelButton.textContent = 'Cancel';
+            cancelButton.style.cssText = `background-color: #555; color: #f0f0f0; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 13px; flex-grow: 1; font-family: 'Source Code Pro', monospace;`;
+            cancelButton.onclick = () => document.body.removeChild(modalOverlay);
+            buttonContainerEl.appendChild(confirmButton);
+            buttonContainerEl.appendChild(cancelButton);
+            modalContent.appendChild(messageP);
+            modalContent.appendChild(buttonContainerEl);
+            modalOverlay.appendChild(modalContent);
+            document.body.appendChild(modalOverlay);
+        }
+
+        // --- LAYOUT MANAGEMENT (NEW & IMPROVED) ---
+        
+        function getSavedLayouts() {
+            try {
+                const layoutsJSON = localStorage.getItem(LAYOUT_STORAGE_KEY);
+                return layoutsJSON ? JSON.parse(layoutsJSON) : [];
+            } catch (error) {
+                console.error("Error reading user layouts from localStorage:", error);
+                return [];
+            }
+        }
+
+        function saveUserLayouts(layouts) {
+            try {
+                localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layouts));
+            } catch (error) {
+                console.error("Error saving user layouts to localStorage:", error);
+                showCustomModal("Error saving layouts.");
+            }
+        }
+        
+        function showLayoutManagerModal() {
+            const existingModal = document.getElementById('layoutManagerModal');
+            if (existingModal) document.body.removeChild(existingModal);
+
+            const modalOverlay = document.createElement('div');
+            modalOverlay.id = 'layoutManagerModal';
+            modalOverlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 10000;`;
+            
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `background-color: #2a2a2a; color: #f0f0f0; padding: 20px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); width: 90%; max-width: 600px; font-family: 'Source Code Pro', monospace; display: flex; flex-direction: column; max-height: 80vh;`;
+
+            const modalHeader = document.createElement('h3');
+            modalHeader.textContent = 'Layout Manager';
+            modalHeader.style.cssText = `text-align: center; margin-top: 0; margin-bottom: 20px; color: #FFA500;`;
+            
+            // --- Save/Import Section ---
+            const topActionsContainer = document.createElement('div');
+            topActionsContainer.style.cssText = `display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #444;`;
+
+            const saveContainer = document.createElement('div');
+            saveContainer.style.cssText = `display: flex; flex-grow: 1; min-width: 250px;`;
+            const layoutNameInput = document.createElement('input');
+            layoutNameInput.type = 'text';
+            layoutNameInput.placeholder = 'New layout name...';
+            layoutNameInput.style.cssText = `flex-grow: 1; background-color: #1e1e1e; color: #f0f0f0; border: 1px solid #444; border-radius: 4px 0 0 4px; padding: 8px; font-size: 13px; border-right: none;`;
+            const saveButton = document.createElement('button');
+            saveButton.textContent = 'Save Current';
+            saveButton.title = "Save the current tab's layout";
+            saveButton.style.cssText = `background-color: #FFA500; color: #000; border: none; padding: 8px 15px; border-radius: 0 4px 4px 0; cursor: pointer; font-size: 13px; white-space: nowrap;`;
+            saveContainer.appendChild(layoutNameInput);
+            saveContainer.appendChild(saveButton);
+
+            const importButton = document.createElement('button');
+            importButton.textContent = 'Import From File';
+            importButton.title = 'Import a .json layout file';
+            importButton.style.cssText = `background-color: #338a3e; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 13px;`;
+
+            topActionsContainer.appendChild(saveContainer);
+            topActionsContainer.appendChild(importButton);
+
+            // --- Lists Container ---
+            const listsContainer = document.createElement('div');
+            listsContainer.style.cssText = `flex-grow: 1; overflow-y: auto;`;
+
+            const closeModalButton = document.createElement('button');
+            closeModalButton.textContent = 'Close';
+            closeModalButton.style.cssText = `background-color: #555; color: #f0f0f0; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-top: 20px; align-self: center;`;
+            
+            modalContent.appendChild(modalHeader);
+            modalContent.appendChild(topActionsContainer);
+            modalContent.appendChild(listsContainer);
+            modalContent.appendChild(closeModalButton);
+            modalOverlay.appendChild(modalContent);
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) {
+                    document.body.removeChild(modalOverlay);
+                }
+            });
+            closeModalButton.onclick = () => document.body.removeChild(modalOverlay);
+            document.body.appendChild(modalOverlay);
+
+            function renderLayoutLists() {
+                listsContainer.innerHTML = '';
+                
+                // Predefined Layouts
+                const predefinedList = createLayoutSection('Predefined Layouts', predefinedLayouts, false);
+                listsContainer.appendChild(predefinedList);
+
+                // User-saved Layouts
+                const userLayouts = getSavedLayouts();
+                const userList = createLayoutSection('My Layouts', userLayouts, true);
+                listsContainer.appendChild(userList);
+            }
+
+            function createLayoutSection(title, layouts, isUserSection) {
+                const section = document.createElement('div');
+                section.style.marginBottom = '20px';
+                const sectionTitle = document.createElement('h4');
+                sectionTitle.textContent = title;
+                sectionTitle.style.cssText = `color: #ccc; margin-top: 0; margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 5px;`;
+                section.appendChild(sectionTitle);
+
+                if (layouts.length === 0) {
+                    section.innerHTML += `<p style="text-align: center; color: #888; padding: 10px 0;">No layouts in this section.</p>`;
+                    return section;
+                }
+
+                const listContainer = document.createElement('div');
+                listContainer.style.cssText = `max-height: 200px; overflow-y: auto; padding-right: 5px;`;
+                layouts.forEach(layout => {
+                    const item = document.createElement('div');
+                    item.style.cssText = `display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #333;`;
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = layout.name;
+                    nameSpan.style.fontSize = '14px';
+                    
+                    const buttonsDiv = document.createElement('div');
+                    buttonsDiv.style.display = 'flex';
+                    buttonsDiv.style.gap = '8px';
+
+                    const loadBtn = document.createElement('button');
+                    loadBtn.textContent = 'Load';
+                    loadBtn.style.cssText = `background-color: #338a3e; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;`;
+                    loadBtn.onclick = () => {
+                        showCustomConfirm(`Load layout "${layout.name}"? This will replace the current tab's content.`, () => {
+                            loadLayoutData(layout);
+                            document.body.removeChild(modalOverlay);
+                        });
+                    };
+                    buttonsDiv.appendChild(loadBtn);
+
+                    if (isUserSection) {
+                        const exportBtn = document.createElement('button');
+                        exportBtn.textContent = 'Export';
+                        exportBtn.style.cssText = `background-color: #0277bd; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;`;
+                        exportBtn.onclick = () => exportLayout(layout.id);
+                        buttonsDiv.appendChild(exportBtn);
+
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = 'Delete';
+                        deleteBtn.style.cssText = `background-color: #c62828; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;`;
+                        deleteBtn.onclick = () => {
+                            showCustomConfirm(`Are you sure you want to delete the layout "${layout.name}"?`, () => {
+                                deleteUserLayout(layout.id);
+                                renderLayoutLists();
+                            });
+                        };
+                        buttonsDiv.appendChild(deleteBtn);
+                    }
+
+                    item.appendChild(nameSpan);
+                    item.appendChild(buttonsDiv);
+                    listContainer.appendChild(item);
+                });
+                section.appendChild(listContainer);
+                return section;
+            }
+
+            saveButton.onclick = () => {
+                const name = layoutNameInput.value.trim();
+                if (!name) {
+                    showCustomModal("Please enter a name for the layout.");
+                    return;
+                }
+                saveCurrentLayoutAsUserLayout(name);
+                layoutNameInput.value = '';
+                renderLayoutLists();
+            };
+            
+            importButton.onclick = importLayout;
+
+            renderLayoutLists();
+        }
+
+        function saveCurrentLayoutAsUserLayout(name) {
+            const activeTabObject = tabs.find(t => t.id === activeTabId);
+            if (!activeTabObject) {
+                showCustomModal("Could not find active tab data to save.");
+                return;
+            }
+            saveLayout(); // First, ensure the in-memory layout is up-to-date
+            
+            const layouts = getSavedLayouts();
+            const newLayout = {
+                id: `user-${Date.now()}`,
+                name: name,
+                widgets: JSON.parse(JSON.stringify(activeTabObject.widgets.map(w => ({name: w.name, htmlFile: w.htmlFile, options: {left: w.left, top: w.top, width: w.width, height: w.height, zIndex: w.zIndex, locked: w.locked}}))))
+            };
+            layouts.push(newLayout);
+            saveUserLayouts(layouts);
+            showCustomModal(`Layout "${name}" saved successfully!`);
+        }
+
+        function loadLayoutData(layoutData) {
+            if (!layoutData) return;
+            const activeTabObject = tabs.find(t => t.id === activeTabId);
+            const activeCanvas = getActiveWidgetCanvas();
+            if (!activeTabObject || !activeCanvas) {
+                showCustomModal("No active tab to load the layout into.");
+                return;
+            }
+            activeCanvas.innerHTML = '';
+            activeTabObject.widgets = [];
+            activeTabObject.highestZ = 0;
+            activeTabObject.widgetCounter = 0;
+            currentHighestZ = 0;
+            currentWidgetCounter = 0;
+            layoutData.widgets.forEach(widgetInfo => {
+                 createWidget(widgetInfo.name, widgetInfo.htmlFile, widgetInfo.options, true, activeCanvas);
+            });
+            saveLayout();
+            updateScrollability();
+        }
+
+        function deleteUserLayout(layoutId) {
+            let layouts = getSavedLayouts();
+            layouts = layouts.filter(l => l.id !== layoutId);
+            saveUserLayouts(layouts);
+        }
+
+        function exportLayout(layoutId) {
+            const layouts = getSavedLayouts();
+            const layoutToExp = layouts.find(l => l.id === layoutId);
+            if (!layoutToExp) {
+                showCustomModal("Could not find layout to export.");
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(layoutToExp, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            const safeName = layoutToExp.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            downloadAnchorNode.setAttribute("download", `${safeName}_layout.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function importLayout() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.onchange = e => { 
+                const file = e.target.files[0]; 
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = readerEvent => {
+                    try {
+                        const content = readerEvent.target.result;
+                        const newLayout = JSON.parse(content);
+                        // Basic validation
+                        if (typeof newLayout.name !== 'string' || !Array.isArray(newLayout.widgets)) {
+                            throw new Error("Invalid layout file format.");
+                        }
+                        const layouts = getSavedLayouts();
+                        // Assign a new unique ID to prevent conflicts
+                        newLayout.id = `user-${Date.now()}`;
+                        layouts.push(newLayout);
+                        saveUserLayouts(layouts);
+                        showCustomModal(`Layout "${newLayout.name}" imported successfully.`, () => {
+                            // Re-open or re-render the modal list
+                            const modal = document.getElementById('layoutManagerModal');
+                            if(modal) document.body.removeChild(modal);
+                            showLayoutManagerModal();
+                        });
+                    } catch (err) {
+                        console.error("Error parsing imported layout file:", err);
+                        showCustomModal("Error: Could not import file. It may be corrupted or in the wrong format.");
+                    }
+                }
+                reader.readAsText(file);
+            }
+            input.click();
+        }
+
+        layoutManagerButton.addEventListener('click', showLayoutManagerModal);
+
+
+        // Initialize
+        populateWidgetDataList();
+        renderTopButtons();
+        loadLayout(); // This will now create all tab canvases and their widgets
+
+        window.addEventListener('load', () => {
+            updateScrollability(); // Initial check for the active tab
+        });
+        window.addEventListener('resize', updateScrollability);
+
+    </script>
+</body>
+</html>

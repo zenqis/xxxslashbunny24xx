@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>COT Historical Data Table - Live</title>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* CSS Styles remain the same as your provided code */
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace;
+            height: 100%; 
+            width: 100%; 
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .widget-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1; 
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0; 
+            overflow: hidden; 
+            min-height: 0;
+        }
+
+        .widget-title-bar {
+            height: 30px; 
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            background-color: #1a1a1a;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            padding-left: 12px;
+            flex-shrink: 0; 
+        }
+        .loader-text {
+            color: #ff8000;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1; 
+            padding: 16px;
+            gap: 15px;
+            box-sizing: border-box;
+            overflow: hidden; 
+            min-height: 0;
+        }
+
+        .controls-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 15px; 
+            padding-bottom: 10px;
+            flex-shrink: 0;
+            flex-wrap: wrap; 
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .controls-wrapper label {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .controls-wrapper select {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 5px;
+            color: #eee;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-family: 'Source Code Pro', monospace;
+            cursor: pointer;
+            outline: none;
+        }
+        
+        .controls-wrapper select:disabled {
+            background-color: #111;
+            color: #555;
+            cursor: not-allowed;
+        }
+
+        .controls-wrapper select:hover:not(:disabled) {
+            border-color: #ff8000;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        
+        .table-container {
+            flex: 1; 
+            overflow-y: auto; 
+            overflow-x: auto;
+            min-height: 0; 
+            border: 1px solid #222;
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%; 
+            border-collapse: collapse;
+            font-size: 12px; 
+        }
+
+        th, td {
+            border-bottom: 1px solid #222; 
+            border-left: 1px solid #222;
+            padding: 7px; 
+            text-align: right; 
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        th:first-child, td:first-child {
+            text-align: left; 
+            border-left: none; 
+            position: sticky;
+            left: 0;
+            background-color: #0d0d0d;
+        }
+        
+        tr:nth-child(even) td {
+            background-color: #080808; 
+        }
+        tr:nth-child(even) td:first-child {
+             background-color: #080808; 
+        }
+
+         tr:hover td {
+            background-color: #151515; 
+        }
+         tr:hover td:first-child {
+            background-color: #151515; 
+        }
+
+         td:first-child {
+            color: #e0e0e0; 
+         }
+
+        th {
+            background-color: #1a1a1a; 
+            color: #ff8000;
+            position: sticky; 
+            top: 0; 
+            z-index: 10;
+        }
+        
+        td {
+            color: #bbb; 
+        }
+        
+        .positive { color: #4CAF50; }
+        .negative { color: #F44336; }
+
+    </style>
+</head>
+<body>
+<div class="widget-container">
+    <div class="widget-title-bar">COT Historical Data Table <span id="loading-indicator" class="loader-text"></span></div>
+    <div class="content-wrapper">
+        <div class="controls-wrapper">
+            <div class="control-group">
+                <label for="instrument-select">Instrument:</label>
+                <select id="instrument-select" disabled></select>
+            </div>
+            <div class="control-group">
+                <label for="trader-type-select">Trader Type:</label>
+                <select id="trader-type-select" disabled>
+                    <option value="all">All Trader Types</option>
+                    <option value="leveragedFund">Leveraged Fund</option>
+                    <option value="assetManager">Asset Manager</option>
+                    <option value="dealer">Dealer</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-container">
+            <table id="cot-historical-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Long</th>
+                        <th>Short</th>
+                        <th>Net Position</th>
+                        <th>Open Interest</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwr-JR2ibyM1ExSW6F-Hm6LiSYPOrvUHM8CtSaVPTDobxeQe7bbCM0stpfoqeEllOLj/exec';
+    
+    const instrumentSelect = document.getElementById('instrument-select');
+    const traderTypeSelect = document.getElementById('trader-type-select');
+    const historicalTableBody = document.getElementById('cot-historical-table').getElementsByTagName('tbody')[0];
+    const loadingIndicator = document.getElementById('loading-indicator');
+
+    let cotDataStore = {}; // Global store for the fetched data
+
+    const instrumentNames = { 
+        CA: "Canadian Dollar",
+        CH: "Swiss Franc",
+        GB: "British Pound",
+        JP: "Japanese Yen",
+        EU: "Euro FX",
+        AU: "Australian Dollar",
+        NZ: "New Zealand Dollar",
+        US: "US Dollar Index",
+        GC: "Gold",
+        OI: "Crude Oil (WTI)"
+    };
+
+    /**
+     * Fetches and transforms data from the Google Apps Script
+     */
+    async function fetchAndProcessData() {
+        loadingIndicator.textContent = '(Loading data...)';
+        instrumentSelect.disabled = true;
+        traderTypeSelect.disabled = true;
+
+        try {
+            const response = await fetch(SCRIPT_URL);
+            if (!response.ok) {
+                throw new Error(`Network response was not ok: ${response.statusText}`);
+            }
+            const rawData = await response.json();
+            const transformedCotData = {};
+
+            const group1Sheets = ['CA', 'CH', 'GB', 'JP', 'EU', 'AU', 'NZ', 'US'];
+            const group2Sheets = ['GC', 'OI'];
+
+            // Process sheets with the first data structure (Currencies)
+            group1Sheets.forEach(sheetName => {
+                if (rawData[sheetName] && Array.isArray(rawData[sheetName])) {
+                    transformedCotData[sheetName] = rawData[sheetName].map(entry => ({
+                        date: new Date(entry["Report Date"]).toISOString().split('T')[0],
+                        leveragedFund: { long: entry["Leveraged Fund Long"], short: entry["Leveraged Fund Short"] },
+                        assetManager: { long: entry["Asset Manager Long"], short: entry["Asset Manager Short"] },
+                        dealer: { long: entry["Dealer Long"], short: entry["Dealer Short"] },
+                        openInterest: entry["Open Interest"]
+                    }));
+                }
+            });
+
+            // Process sheets with the second data structure (Commodities)
+            group2Sheets.forEach(sheetName => {
+                if (rawData[sheetName] && Array.isArray(rawData[sheetName])) {
+                    transformedCotData[sheetName] = rawData[sheetName].map(entry => ({
+                        date: new Date(entry["Report Date"]).toISOString().split('T')[0],
+                        leveragedFund: { long: entry["Managed Money Long"], short: entry["Managed Money Short"] },
+                        assetManager: { long: entry["Producent Merhant Long"], short: entry["Producent Merhant Short"] },
+                        dealer: { long: entry["Swap Long"], short: entry["Swap Short"] },
+                        openInterest: entry["Open Interest"]
+                    }));
+                }
+            });
+            
+            return transformedCotData;
+
+        } catch (error) {
+            console.error("Failed to fetch or process COT data:", error);
+            loadingIndicator.textContent = `(Error loading data)`;
+            historicalTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Error loading data.</td></tr>`;
+            return {}; // Return empty object on failure
+        }
+    }
+
+    /**
+     * Updates the text of the Trader Type dropdown based on the selected instrument.
+     */
+    function updateTraderTypeDropdown() {
+        const selectedInstrumentKey = instrumentSelect.value;
+        const traderOptions = traderTypeSelect.options;
+
+        // Index 1, 2, 3 correspond to the options after "All Trader Types"
+        if (selectedInstrumentKey === 'GC' || selectedInstrumentKey === 'OI') {
+            // Use special names for Gold & Oil
+            traderOptions[1].textContent = "Managed Money";   // Corresponds to value="leveragedFund"
+            traderOptions[2].textContent = "Producent Merchant"; // Corresponds to value="assetManager"
+            traderOptions[3].textContent = "Swap";            // Corresponds to value="dealer"
+        } else {
+            // Use default names for all other instruments (currencies)
+            traderOptions[1].textContent = "Leveraged Fund";
+            traderOptions[2].textContent = "Asset Manager";
+            traderOptions[3].textContent = "Dealer";
+        }
+    }
+
+    function formatNumber(num) {
+        if(typeof num !== 'number') return num;
+        return num.toLocaleString('en-US');
+    }
+    
+    function populateHistoricalDataTable() {
+        historicalTableBody.innerHTML = ''; // Clear previous table rows
+        const selectedInstrumentKey = instrumentSelect.value;
+        const selectedTraderType = traderTypeSelect.value;
+        const instrumentData = cotDataStore[selectedInstrumentKey];
+
+        if (!instrumentData || instrumentData.length === 0) {
+            const row = historicalTableBody.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = 5; 
+            cell.textContent = 'No data available for this instrument.';
+            cell.style.textAlign = 'center';
+            return;
+        }
+
+        // Sort data from newest to oldest for display
+        const sortedData = [...instrumentData].sort((a, b) => new Date(b.date) - new Date(a.date)); 
+
+        sortedData.forEach(report => {
+            let longPos, shortPos, netPos;
+
+            if (selectedTraderType === 'all') {
+                // Sum up all trader types if 'all' is selected
+                longPos = (report.dealer?.long || 0) + (report.leveragedFund?.long || 0) + (report.assetManager?.long || 0);
+                shortPos = (report.dealer?.short || 0) + (report.leveragedFund?.short || 0) + (report.assetManager?.short || 0);
+            } else {
+                longPos = report[selectedTraderType]?.long || 0;
+                shortPos = report[selectedTraderType]?.short || 0;
+            }
+            netPos = longPos - shortPos;
+
+            const row = historicalTableBody.insertRow();
+            
+            row.insertCell().textContent = report.date;
+            row.insertCell().textContent = formatNumber(longPos);
+            row.insertCell().textContent = formatNumber(shortPos);
+            
+            const netPosCell = row.insertCell();
+            netPosCell.textContent = formatNumber(netPos);
+            netPosCell.className = netPos >= 0 ? 'positive' : 'negative';
+            
+            row.insertCell().textContent = formatNumber(report.openInterest);
+        });
+    }
+
+
+    // --- Initialization ---
+    async function initializeWidget() {
+        cotDataStore = await fetchAndProcessData();
+        loadingIndicator.textContent = ''; // Clear loading text
+        
+        instrumentSelect.innerHTML = ''; // Clear placeholder options
+
+        const availableInstruments = Object.keys(cotDataStore);
+        if (availableInstruments.length === 0) {
+            const option = document.createElement('option');
+            option.textContent = "No data loaded";
+            instrumentSelect.appendChild(option);
+            return;
+        }
+
+        // Populate dropdown with the actual instrument names
+        availableInstruments.forEach(key => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = instrumentNames[key] || key; // Use predefined name or key as fallback
+            instrumentSelect.appendChild(option);
+        });
+        
+        // Enable controls
+        instrumentSelect.disabled = false;
+        traderTypeSelect.disabled = false;
+        
+        // Set default selection, prefer Gold if available
+        instrumentSelect.value = availableInstruments.includes('GC') ? 'GC' : availableInstruments[0];
+        traderTypeSelect.value = "all";
+
+        // Update the trader type dropdown for the initial selection
+        updateTraderTypeDropdown();
+
+        // Add event listeners
+        instrumentSelect.addEventListener('change', () => {
+            updateTraderTypeDropdown(); // Update dropdown labels on instrument change
+            populateHistoricalDataTable();
+        });
+        traderTypeSelect.addEventListener('change', populateHistoricalDataTable);
+
+        // Load initial table data
+        populateHistoricalDataTable();
+    }
+
+    //  Initialize the widget
+    initializeWidget();
+
+</script>
+</body>
+</html>

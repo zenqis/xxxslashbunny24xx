@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Retail Historical Data Table</title>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace;
+            height: 100%;
+            width: 100%;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100%; 
+        }
+
+        .widget-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden; 
+            min-height: 0;
+        }
+
+        .widget-title-bar {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            background-color: #1a1a1a;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            padding-left: 12px;
+            flex-shrink: 0;
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 16px;
+            gap: 15px;
+            box-sizing: border-box;
+            overflow: hidden; 
+            min-height: 0;
+        }
+
+        .controls-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 15px; 
+            padding-bottom: 10px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .controls-wrapper label {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .controls-wrapper select {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 5px;
+            color: #eee;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-family: 'Source Code Pro', monospace;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .controls-wrapper select:hover {
+            border-color: #ff8000;
+        }
+
+        /* Minimalist macOS–Style Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+        /* For Firefox */
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        
+        .table-container {
+            flex: 1;
+            overflow: auto; 
+            min-height: 0; 
+            border: 1px solid #222;
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px; 
+        }
+
+        th, td {
+            border-bottom: 1px solid #222; 
+            border-left: 1px solid #222;
+            padding: 7px; 
+            text-align: right; 
+            vertical-align: middle;
+            white-space: nowrap; 
+        }
+        th:first-child, td:first-child {
+            text-align: left; 
+            border-left: none;
+            position: sticky; /* Membuat kolom tanggal sticky */
+            left: 0;
+            background-color: #0d0d0d; /* Warna background agar tidak transparan saat scroll */
+            z-index: 1; /* Di atas baris lain, tapi di bawah header */
+        }
+         tr:nth-child(even) td:first-child {
+            background-color: #060606;
+         }
+         tr:hover td:first-child {
+            background-color: #111;
+         }
+
+
+        th {
+            background-color: #1a1a1a; 
+            color: #ff8000;
+            position: sticky;
+            top: 0; 
+            z-index: 10; 
+        }
+        
+        td {
+            color: #bbb; 
+        }
+        
+        tr:nth-child(even) {
+            background-color: #080808; 
+        }
+        tr:hover {
+            background-color: #151515; 
+        }
+        .positive { color: #4CAF50; }
+        .negative { color: #F44336; }
+
+    </style>
+</head>
+<body>
+<div class="widget-container">
+    <div class="widget-title-bar">Retail Historical Data Table</div>
+    <div class="content-wrapper">
+        <div class="controls-wrapper">
+            <div class="control-group">
+                <label for="retail-hist-instrument-select">Instrument:</label>
+                <select id="retail-hist-instrument-select"></select>
+            </div>
+        </div>
+        <div class="table-container">
+            <table id="retail-historical-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>% Long</th>
+                        <th>% Short</th>
+                        <th>Long Volume</th>
+                        <th>Short Volume</th>
+                        <th>Long Positions</th>
+                        <th>Short Positions</th>
+                        <th>Total Positions</th>
+                        <th>Avg. Long Price</th>
+                        <th>Avg. Short Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw5EDnvhXmjSfRKp9AROuG9bDZMuaC_TNDqQbR0oziTFY_9zP20OwygQybxdgG3hkQhtw/exec';
+    const retailHistInstrumentSelect = document.getElementById('retail-hist-instrument-select');
+    const retailHistoricalTableBody = document.getElementById('retail-historical-table').getElementsByTagName('tbody')[0];
+    let retailDataStore = {}; // Akan diisi dengan data dari JSON
+
+    function formatRetailHistNumber(numStr, isPrice = false, instrumentKey = '', isPercentage = false) {
+        const num = parseFloat(numStr);
+        if (isNaN(num)) return numStr;
+
+        if (isPercentage) {
+            return num.toFixed(1) + '%';
+        }
+        if (isPrice) {
+            if (instrumentKey === 'USDJPY') return num.toFixed(2);
+            return num.toFixed(4);
+        }
+        if (Math.abs(num) >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (Math.abs(num) >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num.toLocaleString('en-US');
+    }
+    
+    function populateRetailHistoricalDataTable() {
+        retailHistoricalTableBody.innerHTML = '<tr><td colspan="10" style="text-align: center;">Loading data...</td></tr>';
+        const selectedInstrumentKey = retailHistInstrumentSelect.value;
+        const instrumentData = retailDataStore[selectedInstrumentKey];
+
+        if (!instrumentData || instrumentData.length === 0) {
+            retailHistoricalTableBody.innerHTML = '<tr><td colspan="10" style="text-align: center;">No data available for this instrument.</td></tr>';
+            return;
+        }
+        
+        retailHistoricalTableBody.innerHTML = ''; // Kosongkan tabel sebelum diisi
+
+        // Data sudah di-reverse oleh Google Script, jadi tidak perlu di-reverse lagi di sini
+        instrumentData.forEach(report => {
+            const row = retailHistoricalTableBody.insertRow();
+            
+            // Format tanggal
+            const date = new Date(report.Timestamp);
+            const formattedDate = `${date.toLocaleString('default', { month: 'short' })} ${date.getDate()}, ${date.getFullYear()}`;
+            
+            row.insertCell().textContent = formattedDate;
+            row.insertCell().textContent = formatRetailHistNumber(report.longPercentage, false, selectedInstrumentKey, true);
+            row.insertCell().textContent = formatRetailHistNumber(report.shortPercentage, false, selectedInstrumentKey, true);
+            row.insertCell().textContent = formatRetailHistNumber(report.longVolume);
+            row.insertCell().textContent = formatRetailHistNumber(report.shortVolume);
+            row.insertCell().textContent = formatRetailHistNumber(report.longPositions);
+            row.insertCell().textContent = formatRetailHistNumber(report.shortPositions);
+            row.insertCell().textContent = formatRetailHistNumber(report.totalPositions);
+            row.insertCell().textContent = formatRetailHistNumber(report.avgLongPrice, true, selectedInstrumentKey);
+            row.insertCell().textContent = formatRetailHistNumber(report.avgShortPrice, true, selectedInstrumentKey);
+        });
+    }
+
+
+    async function initializeRetailHistWidget() {
+        try {
+            const response = await fetch(SCRIPT_URL);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch data: ${response.statusText}`);
+            }
+            retailDataStore = await response.json();
+
+            if (!retailDataStore || Object.keys(retailDataStore).length === 0) {
+                 throw new Error("Fetched data is empty.");
+            }
+
+            // Isi dropdown
+            Object.keys(retailDataStore).forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = key;
+                retailHistInstrumentSelect.appendChild(option);
+            });
+            retailHistInstrumentSelect.value = "EURUSD"; 
+
+            retailHistInstrumentSelect.addEventListener('change', populateRetailHistoricalDataTable);
+            
+            // Render tabel untuk pertama kali
+            populateRetailHistoricalDataTable();
+
+        } catch(error) {
+            console.error("Initialization failed:", error);
+            retailHistoricalTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center;">Error loading data: ${error.message}</td></tr>`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeRetailHistWidget);
+
+</script>
+</body>
+</html>

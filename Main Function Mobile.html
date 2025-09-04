@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Widget Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Gaya Global dan Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background-color: #555; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: #777; }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Source Code Pro', monospace;
+            background-color: #000;
+            color: #f0f0f0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Kontainer Utama untuk Slot Widget */
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px; /* Jarak antar slot */
+            padding: 8px;
+            overflow: hidden;
+        }
+
+        /* Gaya untuk setiap slot widget */
+        .widget-slot {
+            flex: 1; /* Membuat setiap slot memiliki tinggi yang sama */
+            background-color: #1a1a1a;
+            border: 1px dashed #444;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            transition: background-color 0.3s, border-style 0.3s;
+        }
+        
+        /* Tombol untuk menambahkan widget baru di slot kosong */
+        .add-widget-button {
+            cursor: pointer;
+            color: #888;
+            text-align: center;
+            border: none;
+            background: none;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            transition: color 0.3s;
+        }
+        .add-widget-button:hover {
+            color: #FFA500;
+        }
+        .add-widget-button svg {
+            width: 32px;
+            height: 32px;
+        }
+        
+        /* Gaya untuk widget yang sudah terisi */
+        .widget {
+            width: 100%;
+            height: 100%;
+            background-color: #1e1e1e;
+            border-radius: 8px; /* Disesuaikan agar pas di dalam slot */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .widget-header {
+            background-color: #2a2a2a;
+            padding: 6px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #444;
+            flex-shrink: 0;
+        }
+
+        .widget-title {
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: 8px;
+        }
+
+        .widget-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .widget-control-button {
+            background-color: #383838;
+            color: #ccc;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: 'Source Code Pro', monospace;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .widget-control-button:hover {
+            background-color: #4a4a4a;
+            color: #fff;
+        }
+
+        .widget-content {
+            flex-grow: 1;
+            overflow: hidden;
+            background-color: #101010;
+        }
+
+        .widget-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* --- PERUBAHAN BARU: Gaya untuk Menu Pemilihan di dalam Slot --- */
+        .widget-selection-menu {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: #2a2a2a;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+        
+        .selection-menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+            flex-shrink: 0;
+        }
+
+        .selection-menu-title {
+            font-size: 16px;
+            color: #FFA500;
+        }
+
+        .selection-menu-cancel {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 24px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 5px;
+        }
+        .selection-menu-cancel:hover {
+            color: #fff;
+        }
+
+        .selection-menu-body {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .widget-category-title {
+            font-weight: bold;
+            color: #eee;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .widget-selection-item {
+            padding: 8px 12px;
+            color: #ccc;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 4px;
+            display: block;
+        }
+        .widget-selection-item:hover {
+            background-color: #383838;
+            color: #fff;
+        }
+        /* --- AKHIR PERUBAHAN --- */
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div id="slot-1" class="widget-slot"></div>
+        <div id="slot-2" class="widget-slot"></div>
+        <div id="slot-3" class="widget-slot"></div>
+    </div>
+
+    <script>
+        const GITHUB_BASE_URL = 'https://xxslashbunny24xx.github.io/Terminal-Widget/';
+        const LAYOUT_STORAGE_KEY = 'mobileWidgetLayout_v2';
+
+        const widgetCategories = [
+            {
+                name: "Charting",
+                widgets: [
+                    { ticker: "CHRT", htmlFile: "Chart.html", description: "Live Chart" },
+                    { ticker: "QTMN", htmlFile: "Quote Monitor.html", description: "Quote Monitor" }
+                ]
+            },
+            {
+                name: "Market News",
+                widgets: [
+                    { ticker: "MKTH", htmlFile: "Market Headline.html", description: "Market Headline" },
+                    { ticker: "NWSA", htmlFile: "News Article.html", description: "News Article" },
+                    { ticker: "BBYL", htmlFile: "Bloomberg Youtube.html", description: "Livestream TV" },
+                    { ticker: "YPBB", htmlFile: "Youtube Video Playlist.html", description: "Bloomberg Playlist" },
+                    { ticker: "ECNC", htmlFile: "Economic Calendar.html", description: "Economic Calendar" }
+                ]
+            },
+             {
+                name: "Market Research", id: "marketresearch",
+                widgets: [
+                    { ticker: "BNRS", htmlFile: "Bank Research.html", description: "Bank Research" },
+                    { ticker: "CTRK", htmlFile: "Catalyst Tracker.html", description: "Catalyst Tracker" },
+                    { ticker: "CTSX", htmlFile: "Catalyst Explorer.html", description: "Catalyst Explorer" },
+                ]
+            },
+            {
+                name: "Central Bank",
+                widgets: [
+                    { ticker: "IRFC", htmlFile: "Interest Rate Forecast.html", description: "Interest Rate Forecast" },
+                    { ticker: "CBPY", htmlFile: "CB Policy Statement.html", description: "CB Policy Statement" },
+                    { ticker: "CBPT", htmlFile: "CB Policy Table.html", description: "CB Policy Table" },
+                    { ticker: "YLDC", htmlFile: "Yield Curve.html", description: "Yield Curve" }
+                ]
+            },
+            {
+                name: "Macro Data",
+                widgets: [
+                    { ticker: "MCRD", htmlFile: "Macroeconomic Data.html", description: "Macroeconomic Data" },
+                    { ticker: "MKFC", htmlFile: "Market Forecast.html", description: "Market Forecast" }
+                ]
+            },
+             {
+                name: "Portfolio Management", id: "portfoliomanagement",
+                widgets: [
+                    { ticker: "PSCR", htmlFile: "Position Size Calculator.html", description: "Position Size Calculator" },
+                    { ticker: "CPCR", htmlFile: "Compounding Calculator.html", description: "Compounding Calculator" },
+                    { ticker: "PVXC", htmlFile: "Volatility Test.html", description: "Portfolio Volatility Simulator" },
+                ]
+            },
+            {
+                name: "Market Participant",
+                widgets: [
+                    { ticker: "MPCT", htmlFile: "Market Participant COT.html", description: "CFTC Market Participant" },
+                    { ticker: "MPRT", htmlFile: "Market Participant Retail.html", description: "Retail Trader Market Participant" },
+                    { ticker: "RTTC", htmlFile: "Retail Trader.html", description: "Retail Trader Chart" },
+                    { ticker: "RTCT", htmlFile: "Retail Trader Table.html", description: "Retail Trader Table" },
+                    { ticker: "CFCT", htmlFile: "CFTC COT Table.html", description: "COT Table" },
+                    { ticker: "CFTC", htmlFile: "CFTC COT.html", description: "COT Chart" }
+                ]
+            }
+        ];
+
+        const slots = [document.getElementById('slot-1'), document.getElementById('slot-2'), document.getElementById('slot-3')];
+        
+        /**
+         * Menampilkan tombol "Tambah Widget" pada slot yang kosong.
+         * @param {HTMLElement} slotElement - Elemen slot yang akan diisi.
+         */
+        function renderAddWidgetPlaceholder(slotElement) {
+            slotElement.innerHTML = '';
+            slotElement.style.borderStyle = 'dashed'; // Kembalikan border menjadi putus-putus
+            const button = document.createElement('button');
+            button.className = 'add-widget-button';
+            button.innerHTML = `
+                <svg fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"></path></svg>
+                <span>Add Widget</span>`;
+            
+            // Saat tombol ditekan, ganti placeholder dengan menu pemilihan
+            button.onclick = () => renderWidgetSelectionMenu(slotElement);
+            slotElement.appendChild(button);
+        }
+
+        /**
+         * --- PERUBAHAN BARU: Menampilkan menu pemilihan di dalam slot ---
+         * @param {HTMLElement} slotElement - Elemen slot target.
+         */
+        function renderWidgetSelectionMenu(slotElement) {
+            slotElement.innerHTML = '';
+            slotElement.style.borderStyle = 'solid'; // Ubah border menjadi solid saat menu aktif
+
+            const menuContainer = document.createElement('div');
+            menuContainer.className = 'widget-selection-menu';
+            
+            const header = document.createElement('div');
+            header.className = 'selection-menu-header';
+            header.innerHTML = `
+                <span class="selection-menu-title">Select Widget</span>
+                <button class="selection-menu-cancel" title="Batal">&times;</button>
+            `;
+
+            const body = document.createElement('div');
+            body.className = 'selection-menu-body';
+            
+            // Isi body dengan daftar widget
+            widgetCategories.forEach(category => {
+                const categoryTitle = document.createElement('div');
+                categoryTitle.className = 'widget-category-title';
+                categoryTitle.textContent = category.name;
+                body.appendChild(categoryTitle);
+
+                category.widgets.forEach(widget => {
+                    const item = document.createElement('div');
+                    item.className = 'widget-selection-item';
+                    item.textContent = `#${widget.ticker} - ${widget.description}`;
+                    item.onclick = () => createWidget(widget, slotElement.id);
+                    body.appendChild(item);
+                });
+            });
+
+            menuContainer.appendChild(header);
+            menuContainer.appendChild(body);
+            slotElement.appendChild(menuContainer);
+
+            // Tambahkan event listener untuk tombol batal
+            header.querySelector('.selection-menu-cancel').onclick = () => {
+                const widget = slotElement.querySelector('.widget');
+                // Jika sudah ada widget, jangan tampilkan placeholder, biarkan widget tetap ada
+                if (!widget) {
+                    renderAddWidgetPlaceholder(slotElement);
+                } else {
+                    slotElement.style.borderStyle = 'solid'; // Kembalikan ke solid jika ada widget
+                }
+            };
+        }
+
+
+        /**
+         * Membuat dan menampilkan widget pada slot tertentu.
+         * @param {object} widgetData - Informasi tentang widget.
+         * @param {string} slotId - ID dari slot target.
+         */
+        function createWidget(widgetData, slotId) {
+            const targetSlot = document.getElementById(slotId);
+            if (!targetSlot) return;
+
+            targetSlot.innerHTML = ''; 
+            targetSlot.style.borderStyle = 'solid'; // Border solid untuk slot yang terisi
+
+            const widgetEl = document.createElement('div');
+            widgetEl.className = 'widget';
+            widgetEl.dataset.htmlFile = widgetData.htmlFile;
+            widgetEl.dataset.description = widgetData.description;
+
+            const header = document.createElement('div');
+            header.className = 'widget-header';
+            
+            const title = document.createElement('span');
+            title.className = 'widget-title';
+            title.textContent = widgetData.description;
+            
+            const controls = document.createElement('div');
+            controls.className = 'widget-controls';
+
+            const replaceButton = document.createElement('button');
+            replaceButton.className = 'widget-control-button';
+            replaceButton.textContent = 'Change';
+            replaceButton.title = 'Change Widget';
+            replaceButton.onclick = () => {
+                // Tampilkan menu pemilihan langsung di slot ini
+                renderWidgetSelectionMenu(targetSlot);
+            };
+
+            const closeButton = document.createElement('button');
+            closeButton.className = 'widget-control-button';
+            closeButton.textContent = 'Close';
+            closeButton.title = 'Close Widget';
+            closeButton.onclick = () => clearSlot(slotId);
+
+            controls.appendChild(replaceButton);
+            controls.appendChild(closeButton);
+            header.appendChild(title);
+            header.appendChild(controls);
+            
+            const content = document.createElement('div');
+            content.className = 'widget-content';
+            const iframe = document.createElement('iframe');
+            iframe.src = `${GITHUB_BASE_URL}${encodeURIComponent(widgetData.htmlFile)}`;
+            content.appendChild(iframe);
+
+            widgetEl.appendChild(header);
+            widgetEl.appendChild(content);
+
+            targetSlot.appendChild(widgetEl);
+            saveLayout();
+        }
+
+        /**
+         * Membersihkan slot dan mengembalikannya ke state awal.
+         */
+        function clearSlot(slotId) {
+            const targetSlot = document.getElementById(slotId);
+            if (targetSlot) {
+                renderAddWidgetPlaceholder(targetSlot);
+                saveLayout();
+            }
+        }
+
+        /**
+         * Menyimpan tata letak ke localStorage.
+         */
+        function saveLayout() {
+            const layoutState = {};
+            slots.forEach(slot => {
+                const widget = slot.querySelector('.widget');
+                layoutState[slot.id] = widget ? {
+                    htmlFile: widget.dataset.htmlFile,
+                    description: widget.dataset.description
+                } : null;
+            });
+            localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layoutState));
+        }
+
+        /**
+         * Memuat tata letak dari localStorage.
+         */
+        function loadLayout() {
+            const savedStateJSON = localStorage.getItem(LAYOUT_STORAGE_KEY);
+            if (savedStateJSON) {
+                const savedState = JSON.parse(savedStateJSON);
+                Object.keys(savedState).forEach(slotId => {
+                    const widgetData = savedState[slotId];
+                    const slotElement = document.getElementById(slotId);
+                    if (slotElement) {
+                        if (widgetData) {
+                            createWidget(widgetData, slotId);
+                        } else {
+                            renderAddWidgetPlaceholder(slotElement);
+                        }
+                    }
+                });
+            } else {
+                slots.forEach(renderAddWidgetPlaceholder);
+            }
+        }
+
+        // Inisialisasi Aplikasi
+        document.addEventListener('DOMContentLoaded', loadLayout);
+    </script>
+</body>
+</html>

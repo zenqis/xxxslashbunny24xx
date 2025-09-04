@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Retail Trader Positioning Explorer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .widget-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .widget-title-bar {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            background-color: #1a1a1a;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            padding-left: 12px;
+            flex-shrink: 0;
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 16px;
+            gap: 15px;
+            box-sizing: border-box;
+            overflow: auto; 
+            min-height: 0;
+        }
+
+        .controls-wrapper {
+            display: flex;
+            flex-direction: column; 
+            gap: 10px; 
+            padding-bottom: 10px;
+            flex-shrink: 0;
+        }
+        
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 10px; 
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .controls-wrapper label {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .controls-wrapper select, .controls-wrapper button {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 5px;
+            color: #eee;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-family: 'Source Code Pro', monospace;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .controls-wrapper select:hover, .controls-wrapper button:hover {
+            border-color: #ff8000;
+        }
+        .controls-wrapper button.active {
+            background-color: #ff8000;
+            color: #000;
+            border-color: #ff8000;
+        }
+
+        /* Global Minimalist macOS–Style Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        .canvas-wrapper {
+            flex: 1;
+            position: relative;
+            display: flex; 
+            min-height: 300px; 
+            background-color: #0d0d0d; 
+            border-radius: 4px;
+            padding:10px;
+        }
+
+        canvas#retailDataChart {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+        #retail-insight-area {
+            font-size: 12px;
+            color: #ccc;
+            padding-top: 10px;
+            border-top: 1px solid #222;
+            margin-top:10px;
+            line-height: 1.6;
+        }
+         #retail-insight-area strong {
+            color: #ff8000;
+        }
+    </style>
+</head>
+<body>
+<div class="widget-container">
+    <div class="widget-title-bar">Retail Trader Positioning Explorer</div>
+    <div class="content-wrapper">
+        <div class="controls-wrapper">
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="retail-instrument-select">Instrument:</label>
+                    <select id="retail-instrument-select"></select>
+                </div>
+            </div>
+            <div class="control-row" id="retail-chart-mode-buttons">
+                <button data-mode="netPosition" class="active">Net Volume</button>
+                <button data-mode="percentagePosition">Percentage Position</button>
+                <button data-mode="lotVolume">Lot Volume</button>
+                <button data-mode="numPositions">Number of Positions</button>
+                <button data-mode="totalPositionBar">Total Position</button>
+                <button data-mode="averagePrices">Avg. Entry Prices</button>
+            </div>
+        </div>
+        <div class="canvas-wrapper">
+            <canvas id="retailDataChart"></canvas>
+        </div>
+        <div id="retail-insight-area">
+        </div>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw5EDnvhXmjSfRKp9AROuG9bDZMuaC_TNDqQbR0oziTFY_9zP20OwygQybxdgG3hkQhtw/exec';
+    const ctxRetail = document.getElementById('retailDataChart').getContext('2d');
+    const retailInstrumentSelect = document.getElementById('retail-instrument-select');
+    const retailChartModeButtonsContainer = document.getElementById('retail-chart-mode-buttons');
+    const retailInsightArea = document.getElementById('retail-insight-area');
+    let retailDataChartInstance = null;
+    let currentRetailChartMode = 'netPosition';
+    let retailDataStore = {}; // Will be filled with data from JSON
+
+    const retailColors = {
+        netPositive: 'rgba(34, 177, 76, 0.7)',
+        netNegative: 'rgba(237, 28, 36, 0.7)',
+        long: 'rgba(75, 192, 75, 0.7)',
+        short: 'rgba(255, 99, 75, 0.7)',
+        percentageLong: 'rgba(54, 162, 235, 0.7)', 
+        percentageShort: 'rgba(255, 159, 64, 0.7)', 
+        volumeLong: 'rgba(153, 102, 255, 0.7)', 
+        volumeShort: 'rgba(255, 206, 86, 0.7)', 
+        avgPriceLong: 'rgba(75, 192, 192, 0.8)', 
+        avgPriceShort: 'rgba(201, 203, 207, 0.8)', 
+        totalPositions: 'rgba(255, 99, 132, 0.7)' 
+    };
+
+    function formatRetailNumber(numStr, isPrice = false, instrumentKey = '') {
+        const num = parseFloat(numStr);
+        if (isNaN(num)) return numStr; // Return original string if not a number
+
+        if (isPrice) {
+            if (instrumentKey === 'USDJPY') return num.toFixed(2);
+            return num.toFixed(4);
+        }
+        if (Math.abs(num) >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (Math.abs(num) >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toLocaleString('en-US');
+    }
+
+    function renderRetailChart() {
+        if (retailDataChartInstance) {
+            retailDataChartInstance.destroy();
+        }
+        retailInsightArea.innerHTML = ''; 
+
+        const selectedInstrumentKey = retailInstrumentSelect.value;
+        const data = retailDataStore[selectedInstrumentKey] || [];
+
+        if (data.length === 0) {
+            retailInsightArea.innerHTML = 'No data available for the selected instrument.';
+            return;
+        }
+
+        // Create Date objects from the timestamp. new Date() correctly parses ISO 8601 strings
+        // (ending in 'Z' for UTC) and allows for automatic conversion to the user's local time.
+        const labels = data.map(d => new Date(d.Timestamp));
+        const latestData = data[0]; // Data is reversed, so latest is at index 0
+
+        let chartConfig;
+
+        switch (currentRetailChartMode) {
+            case 'netPosition':
+                chartConfig = getRetailNetPositionConfig(data, labels);
+                break;
+            case 'percentagePosition': 
+                chartConfig = getRetailPercentagePositionConfig(data, labels);
+                break;
+            case 'lotVolume': 
+                chartConfig = getRetailLotVolumeConfig(data, labels);
+                break;
+            case 'numPositions': 
+                chartConfig = getRetailNumPositionsConfig(data, labels);
+                break;
+            case 'totalPositionBar': 
+                chartConfig = getRetailTotalPositionBarConfig(data, labels);
+                break;
+            case 'averagePrices':
+                chartConfig = getRetailAveragePriceConfig(data, labels, selectedInstrumentKey);
+                break;
+            default:
+                chartConfig = getRetailNetPositionConfig(data, labels);
+                break;
+        }
+        
+        if (latestData) {
+            generateRetailInsights(latestData, selectedInstrumentKey);
+        }
+
+        if (chartConfig) {
+             retailDataChartInstance = new Chart(ctxRetail, chartConfig);
+        }
+    }
+
+    // --- Chart Configurations for Retail ---
+
+    function getRetailNetPositionConfig(data, labels) {
+        const netPositions = data.map(d => parseFloat(d.longVolume) - parseFloat(d.shortVolume));
+        return {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Retail Net Volume',
+                    data: netPositions,
+                    borderWidth: 2, 
+                    pointRadius: 2,
+                    fill: true, 
+                    tension: 0.3,
+                    segment: {
+                        borderColor: ctx => netPositions[ctx.p0DataIndex] >= 0 ? retailColors.netPositive : retailColors.netNegative,
+                        backgroundColor: ctx => netPositions[ctx.p0DataIndex] >= 0 ? retailColors.netPositive.replace('0.7', '0.1') : retailColors.netNegative.replace('0.7', '0.1'),
+                    },
+                    pointBorderColor: netPositions.map(val => val >= 0 ? retailColors.netPositive : retailColors.netNegative),
+                    pointBackgroundColor: netPositions.map(val => val >= 0 ? retailColors.netPositive : retailColors.netNegative),
+                }]
+            },
+            options: commonRetailChartOptions('Retail Net Volume', 'Net Volume (Lots)', true, retailInstrumentSelect.value)
+        };
+    }
+
+    function getRetailPercentagePositionConfig(data, labels) {
+        return {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { 
+                        label: 'Percentage Long', 
+                        data: data.map(d => parseFloat(d.longPercentage)), 
+                        borderColor: retailColors.percentageLong, 
+                        borderWidth: 2, fill: false, pointRadius: 1, tension: 0.3 
+                    },
+                    { 
+                        label: 'Percentage Short', 
+                        data: data.map(d => parseFloat(d.shortPercentage)), 
+                        borderColor: retailColors.percentageShort, 
+                        borderWidth: 2, fill: false, pointRadius: 1, tension: 0.3
+                    }
+                ]
+            },
+            options: commonRetailChartOptions('Retail Percentage Position (Long vs. Short)', '% of Total Positions', true, retailInstrumentSelect.value, false, true) 
+        };
+    }
+    
+    function getRetailLotVolumeConfig(data, labels) {
+        return {
+            type: 'line', 
+            data: {
+                labels: labels,
+                datasets: [
+                    { 
+                        label: 'Retail Long Volume', 
+                        data: data.map(d => parseFloat(d.longVolume)), 
+                        borderColor: retailColors.volumeLong, 
+                        backgroundColor: retailColors.volumeLong.replace('0.7', '0.1'), 
+                        borderWidth: 2, fill: false, pointRadius: 1, tension: 0.3 
+                    },
+                    { 
+                        label: 'Retail Short Volume', 
+                        data: data.map(d => parseFloat(d.shortVolume)), 
+                        borderColor: retailColors.volumeShort, 
+                        backgroundColor: retailColors.volumeShort.replace('0.7', '0.1'), 
+                        borderWidth: 2, fill: false, pointRadius: 1, tension: 0.3
+                    }
+                ]
+            },
+            options: commonRetailChartOptions('Retail Lot Volume (Long vs. Short)', 'Volume (Lots)', true, retailInstrumentSelect.value)
+        };
+    }
+
+    function getRetailNumPositionsConfig(data, labels) { 
+        return {
+            type: 'line', 
+            data: {
+                labels: labels,
+                datasets: [
+                    { 
+                        label: 'Retail Long Positions', 
+                        data: data.map(d => parseFloat(d.longPositions)), 
+                        borderColor: retailColors.long, 
+                        backgroundColor: retailColors.long.replace('0.7', '0.1'), 
+                        borderWidth: 2, fill: false, pointRadius: 1, tension: 0.3 
+                    },
+                    { 
+                        label: 'Retail Short Positions', 
+                        data: data.map(d => parseFloat(d.shortPositions)), 
+                        borderColor: retailColors.short, 
+                        backgroundColor: retailColors.short.replace('0.7', '0.1'), 
+                        borderWidth: 2, fill: false, pointRadius: 1, tension: 0.3
+                    }
+                ]
+            },
+            options: commonRetailChartOptions('Retail Number of Positions (Long vs. Short)', 'Number of Positions', true, retailInstrumentSelect.value)
+        };
+    }
+    
+    function getRetailTotalPositionBarConfig(data, labels) { 
+        return {
+            type: 'bar', 
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Total Retail Positions',
+                    data: data.map(d => parseFloat(d.totalPositions)),
+                    backgroundColor: retailColors.totalPositions,
+                    borderColor: retailColors.totalPositions.replace('0.7', '1.0'), 
+                    borderWidth: 1
+                }]
+            },
+            options: commonRetailChartOptions('Total Retail Positions', 'Number of Contracts', true, retailInstrumentSelect.value)
+        };
+    }
+
+    function getRetailAveragePriceConfig(data, labels, instrumentKey) {
+        return {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { 
+                        label: 'Avg. Long Price', 
+                        data: data.map(d => parseFloat(d.avgLongPrice)), 
+                        borderColor: retailColors.avgPriceLong, 
+                        borderWidth: 2, fill: false, pointRadius: 1, tension: 0.3 
+                    },
+                    { 
+                        label: 'Avg. Short Price', 
+                        data: data.map(d => parseFloat(d.avgShortPrice)), 
+                        borderColor: retailColors.avgPriceShort, 
+                        borderWidth: 2, fill: false, pointRadius: 1, tension: 0.3
+                    }
+                ]
+            },
+            options: commonRetailChartOptions('Retail Average Entry Prices', 'Price', true, instrumentKey, true) 
+        };
+    }
+
+    /**
+     * UPDATED: Changed display format for the 'hour' unit to show date and time.
+     */
+    function commonRetailChartOptions(titleText, yAxisLabel, isTimeSeries = true, instrumentKey = '', isPriceAxis = false, isPercentageAxis = false) {
+        const fullInstrumentName = retailInstrumentSelect.options[retailInstrumentSelect.selectedIndex]?.text || instrumentKey;
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: { display: true, text: `${titleText} - ${fullInstrumentName}`, color: '#f0f0f0', font: {size: 14}},
+                legend: { position: 'top', labels: { color: '#f0f0f0' } },
+                tooltip: {
+                    backgroundColor: 'rgba(0,0,0,0.8)', titleColor: '#fff', bodyColor: '#fff',
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) { label += ': '; }
+                            if (context.parsed.y !== null) {
+                                if (isPercentageAxis) {
+                                        label += context.parsed.y.toFixed(1) + '%';
+                                } else {
+                                        label += formatRetailNumber(String(context.parsed.y), isPriceAxis, instrumentKey);
+                                }
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    title: { display: true, text: yAxisLabel, color: '#ccc' },
+                    grid: { color: '#2a2a2a' },
+                    ticks: { 
+                        color: '#e1e1e1', 
+                        callback: function(value) { 
+                            if (isPercentageAxis) return value.toFixed(0) + '%';
+                            return formatRetailNumber(String(value), isPriceAxis, instrumentKey); 
+                        } 
+                    },
+                    ...(isPercentageAxis && { min: 0, max: 100 }) 
+                },
+                x: {
+                    grid: { display: !isTimeSeries, color: '#2a2a2a' }, 
+                    ticks: { color: '#e1e1e1', maxRotation: isTimeSeries? 45 : 0, minRotation: isTimeSeries? 45 : 0 },
+                }
+            }
+        };
+        if (isTimeSeries) {
+            options.scales.x.type = 'time';
+            options.scales.x.time = {
+                unit: 'hour',
+                tooltipFormat: 'MMM dd, yyyy HH:mm',
+                displayFormats: {
+                    // UPDATED: This format now shows Date and Time for the 'hour' unit.
+                    hour: 'MMM dd, HH:mm', 
+                    day: 'MMM dd'
+                }
+            };
+        }
+        return options;
+    }
+    
+    function generateRetailInsights(latestData, instrumentKey) {
+        if (!latestData) return;
+        const fullInstrumentName = retailInstrumentSelect.options[retailInstrumentSelect.selectedIndex]?.text || instrumentKey;
+        const netPosition = parseFloat(latestData.longVolume) - parseFloat(latestData.shortVolume);
+        
+        const date = new Date(latestData.Timestamp);
+        const formattedDate = date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZoneName: 'short'
+        });
+
+
+        let text = `<strong>Retail Insights for ${fullInstrumentName} (${formattedDate}):</strong><br/>`;
+        text += `Net Volume: <span>${formatRetailNumber(String(netPosition))} Lots</span> (L: ${formatRetailNumber(latestData.longVolume)}, S: ${formatRetailNumber(latestData.shortVolume)})<br/>`;
+        text += `Long/Short %: ${parseFloat(latestData.longPercentage).toFixed(1)}% Long / ${parseFloat(latestData.shortPercentage).toFixed(1)}% Short<br/>`;
+        text += `Volume: ${formatRetailNumber(latestData.longVolume)} (L) / ${formatRetailNumber(latestData.shortVolume)} (S)<br/>`;
+        text += `Avg Prices: ${formatRetailNumber(latestData.avgLongPrice, true, instrumentKey)} (L) / ${formatRetailNumber(latestData.avgShortPrice, true, instrumentKey)} (S)<br/>`;
+        text += `Total Positions: ${formatRetailNumber(latestData.totalPositions)}<br/>`;
+        retailInsightArea.innerHTML = text;
+    }
+
+    async function initializeRetailWidget() {
+        try {
+            const response = await fetch(SCRIPT_URL);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
+            }
+            retailDataStore = await response.json();
+
+            if (!retailDataStore || Object.keys(retailDataStore).length === 0) {
+                throw new Error("Data store is empty after fetch.");
+            }
+
+            // Populate dropdown
+            retailInstrumentSelect.innerHTML = '';
+            Object.keys(retailDataStore).forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = key;
+                retailInstrumentSelect.appendChild(option);
+            });
+
+            // Set default and add event listeners
+            retailInstrumentSelect.value = "EURUSD"; 
+            
+            retailChartModeButtonsContainer.addEventListener('click', (event) => {
+                if (event.target.tagName === 'BUTTON') {
+                    retailChartModeButtonsContainer.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+                    event.target.classList.add('active');
+                    currentRetailChartMode = event.target.dataset.mode;
+                    renderRetailChart(); 
+                }
+            });
+            retailInstrumentSelect.addEventListener('change', renderRetailChart);
+
+            // Initial render
+            renderRetailChart(); 
+
+        } catch (error) {
+            console.error("Error initializing widget:", error);
+            retailInsightArea.innerHTML = `Failed to load data. Please check the API URL and console for errors. <br/>${error.message}`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeRetailWidget);
+
+</script>
+</body>
+</html>

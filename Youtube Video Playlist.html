@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Channel Playlist</title>
+    <!-- Mengimpor font dari Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --transition-speed: 0.4s;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: 'Source Code Pro', monospace;
+            background-color: #000;
+            color: #f0f0f0;
+            box-sizing: border-box;
+        }
+
+        .table-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: #0d0d0d;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .header-section {
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10;
+            background-color: #1a1a1a;
+            border-bottom: 1px solid #222;
+        }
+
+        .title-bar {
+            color: #fff;
+            padding: 12px 15px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        #show-player-bar {
+            background-color: #000;
+            padding: 12px 18px;
+            border-bottom: 1px solid #222;
+            display: none; /* Sembunyi secara default */
+            flex-shrink: 0;
+        }
+
+        #show-player-btn {
+            background-color: #00509e;
+            color: #fff;
+            border: none;
+            padding: 10px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 13px;
+            width: 100%;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+        #show-player-btn:hover {
+            background-color: #0066cc;
+        }
+        
+        .table-container.video-playing-hidden #show-player-bar {
+            display: block;
+        }
+
+        #player-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #000;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            box-sizing: border-box;
+            transform: translateY(-100%);
+            transition: transform var(--transition-speed) ease-in-out;
+        }
+
+        .table-container.player-active #player-container {
+            transform: translateY(0);
+        }
+
+        .player-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            background-color: #000;
+            flex-grow: 1;
+        }
+
+        .player-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        #close-player-btn {
+            background-color: #2a2a2a;
+            color: #ccc;
+            border: 1px solid #444;
+            padding: 10px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 13px;
+            margin-top: 15px;
+            width: 100%;
+            text-align: center;
+            flex-shrink: 0;
+            transition: background-color 0.2s;
+        }
+        #close-player-btn:hover { background-color: #3a3a3a; color: #fff; }
+
+        .content-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            transition: opacity var(--transition-speed) ease-in-out;
+        }
+
+        .table-container.player-active .content-area {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .video-container {
+            padding: 18px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+        }
+
+        .video-item {
+            background-color: #1a1a1a;
+            border-radius: 5px;
+            border: 1px solid #222;
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s;
+        }
+
+        .video-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0, 255, 255, 0.15);
+        }
+        
+        .video-thumbnail {
+            width: 100%;
+            display: block;
+            aspect-ratio: 16 / 9;
+            object-fit: cover;
+            background-color: #111;
+            border-bottom: 1px solid #222;
+        }
+
+        .video-info { padding: 12px; display: flex; flex-direction: column; flex-grow: 1; }
+        .video-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #eee;
+            margin-bottom: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+        .video-meta {
+            font-size: 11px; 
+            color: #aaa;
+            margin-top: auto;
+            padding-top: 8px; 
+            border-top: 1px solid #2a2a2a; 
+            display: flex;
+            justify-content: space-between; 
+            align-items: center;
+            gap: 8px;
+        }
+        .meta-tag {
+            font-size: 10px;
+            color: #fff; 
+            background-color: #333;
+            padding: 2px 5px;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 768px) {
+            .video-container { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 480px) {
+            .video-container { grid-template-columns: repeat(1, 1fr); padding: 15px; gap: 15px; }
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0d0d0d; }
+        ::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.15); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.25); }
+        html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) #0d0d0d; }
+
+        .message {
+            color: #888;
+            text-align: center;
+            padding: 40px;
+            font-style: italic;
+            font-size: 14px;
+            grid-column: 1 / -1;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="main-container" class="table-container">
+        <div class="header-section">
+            <div class="title-bar">Bloomberg Video Feed</div>
+        </div>
+        
+        <div id="show-player-bar">
+            <button id="show-player-btn">Show Player &amp; Hide All Videos</button>
+        </div>
+        
+        <div id="player-container"></div>
+
+        <div class="content-area">
+            <div id="video-container" class="video-container">
+                <p id="message" class="message">Fetching latest videos...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const GAS_URL = 'https://script.google.com/macros/s/AKfycbwLR9wmj8CCzMlBiP2safCBSulmTgd0gLOu23HzJEOSVMqgE83vZ5o8q6Wk_GOF9eQEeg/exec';
+
+            const mainContainer = document.getElementById('main-container');
+            const videoContainer = document.getElementById('video-container');
+            const messageElement = document.getElementById('message');
+            const playerContainer = document.getElementById('player-container');
+            const showPlayerBtn = document.getElementById('show-player-btn');
+
+            let allVideos = [];
+            let currentVideoId = null;
+
+            function showPlayer(videoId) {
+                if (videoId !== currentVideoId) {
+                    currentVideoId = videoId;
+                    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`;
+                    playerContainer.innerHTML = `
+                        <div class="player-wrapper">
+                            <iframe id="youtube-player" src="${embedUrl}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        </div>
+                        <button id="close-player-btn">▲ Close Player & Show All Videos</button>
+                    `;
+                    document.getElementById('close-player-btn').addEventListener('click', hidePlayer);
+                }
+                
+                mainContainer.classList.add('player-active');
+                mainContainer.classList.remove('video-playing-hidden');
+            }
+
+            function hidePlayer() {
+                mainContainer.classList.remove('player-active');
+                if (currentVideoId) {
+                    mainContainer.classList.add('video-playing-hidden');
+                }
+            }
+            
+            function showHiddenPlayer() {
+                mainContainer.classList.add('player-active');
+                mainContainer.classList.remove('video-playing-hidden');
+            }
+
+            async function fetchVideos() {
+                // Jangan perbarui grid jika player sedang aktif (terlihat)
+                // Ini mencegah kedipan yang tidak perlu pada daftar video di belakang
+                if (mainContainer.classList.contains('player-active')) {
+                    // Cukup ambil data baru di latar belakang
+                    const response = await fetch(GAS_URL);
+                    const data = await response.json();
+                    if (data.success && Array.isArray(data.data)) {
+                        allVideos = data.data; // Perbarui data cache
+                    }
+                    return; // Hentikan eksekusi lebih lanjut
+                }
+
+                try {
+                    const response = await fetch(GAS_URL);
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    const data = await response.json();
+                    if (data.success && Array.isArray(data.data)) {
+                        allVideos = data.data;
+                        renderVideos(allVideos);
+                    } else {
+                        throw new Error(data.message || 'Invalid data format from API.');
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch videos:', error);
+                    messageElement.textContent = `Error: Failed to load video data. Please try again later.`;
+                    videoContainer.innerHTML = '';
+                    videoContainer.appendChild(messageElement);
+                }
+            }
+
+            function renderVideos(videos) {
+                videoContainer.innerHTML = ''; 
+                if (videos.length === 0) {
+                    messageElement.textContent = 'No videos found matching your criteria.';
+                    videoContainer.appendChild(messageElement);
+                    return;
+                }
+                videos.forEach(video => {
+                    const publishedDate = new Date(video.publishedAt).toLocaleString('id-ID', {
+                        day: 'numeric', month: 'long', year: 'numeric'
+                    });
+                    const videoItem = document.createElement('div');
+                    videoItem.className = 'video-item';
+                    videoItem.dataset.videoId = video.videoId;
+                    videoItem.innerHTML = `
+                        <img src="${video.thumbnailUrl}" alt="${video.title}" class="video-thumbnail" onerror="this.style.backgroundColor='#222'; this.alt='Image not available';">
+                        <div class="video-info">
+                            <div class="video-title" title="${video.title}">${video.title}</div>
+                            <div class="video-meta">
+                                <span>${publishedDate}</span>
+                                <span class="meta-tag">YouTube</span>
+                            </div>
+                        </div>
+                    `;
+                    videoContainer.appendChild(videoItem);
+                });
+            }
+
+            // --- EVENT LISTENERS ---
+
+            videoContainer.addEventListener('click', (e) => {
+                const videoItem = e.target.closest('.video-item');
+                if (!videoItem) return;
+                const clickedVideoId = videoItem.dataset.videoId;
+                if (clickedVideoId === currentVideoId && mainContainer.classList.contains('video-playing-hidden')) {
+                    showHiddenPlayer();
+                } else {
+                    showPlayer(clickedVideoId);
+                }
+            });
+            
+            showPlayerBtn.addEventListener('click', showHiddenPlayer);
+
+            // --- INISIALISASI & REFRESH OTOMATIS ---
+            fetchVideos(); // Panggil pertama kali saat halaman dimuat
+
+            // PERUBAHAN: Atur interval untuk refresh data setiap 31 menit
+            const REFRESH_INTERVAL = 31 * 60 * 1000; // 31 menit dalam milidetik
+            setInterval(fetchVideos, REFRESH_INTERVAL);
+        });
+    </script>
+
+</body>
+</html>

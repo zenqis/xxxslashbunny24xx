@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volatility Simulator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Source Code Pro', monospace; background-color: #000; color: #f0f0f0; margin: 0; padding: 0; overflow: hidden; }
+        .table-container { width: 100%; height: 100vh; padding: 0; box-sizing: border-box; background-color: #000; border-radius: 0; display: flex; flex-direction: column; overflow: hidden; }
+        .title-bar { background-color: #1a1a1a; color: #fff; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; border-bottom: 1px solid #222; }
+        .table-wrapper { overflow-y: auto; flex-grow: 1; padding: 0 15px; }
+        table { width: 100%; border-collapse: collapse; background-color: #000; font-size: 14px; }
+        th, td { padding: 12px 0; border-bottom: 1px solid #222; text-align: left; color: #ddd; vertical-align: middle; }
+        th { background-color: #111; color: #eee; padding-left: 15px; }
+        td:first-child { width: 45%; }
+        input, select { background-color: #111; color: #f0f0f0; border: 1px solid #333; padding: 10px 14px; width: 100%; box-sizing: border-box; border-radius: 0; font-family: 'Source Code Pro', monospace; font-size: 14px; }
+        input:focus, select:focus { outline: none; border-color: #ddd; }
+        button { width: 100%; padding: 14px; background-color: #111; color: #eee; border: 1px solid #333; font-family: 'Source Code Pro', monospace; font-size: 16px; font-weight: 600; cursor: pointer; text-align: center; margin-top: 10px; }
+        button:hover { background-color: #222; color: #fff; }
+        .result-section { display: none; padding-top: 20px; }
+        .result-section.show { display: block; }
+        .result-value { font-weight: 600; color: #fff; }
+        .simulation-chart-container { margin-top: 25px; padding: 10px; background-color: #0a0a0a; border: 1px solid #222; }
+        .simulation-chart-container h3 { padding: 10px 0; margin: 0; font-size: 16px; border-bottom: 1px solid #222; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.2); }
+        html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+    </style>
+</head>
+<body>
+
+    <div class="table-container">
+        <div class="title-bar">
+            <span>Volatility Simulator</span>
+        </div>
+        <div class="table-wrapper">
+            <form id="simulation-form">
+                <table>
+                    <tbody>
+                        <tr><td><label for="sim-initial-capital">Initial Capital</label></td><td><input type="text" inputmode="decimal" id="sim-initial-capital" value="10,000"></td></tr>
+                        <tr><td><label id="sim-duration-label" for="sim-investment-duration">Investment Duration</label></td><td><input type="text" inputmode="decimal" id="sim-investment-duration" value="24"></td></tr>
+                        <tr><td><label for="sim-additional-contribution">Additional Contribution</label></td><td><input type="text" inputmode="decimal" id="sim-additional-contribution" value="500"></td></tr>
+                        <tr><td><label for="sim-contribution-frequency">Contribution Frequency</label></td><td><select id="sim-contribution-frequency"><option value="monthly" selected>Monthly</option><option value="yearly">Annually</option></select></td></tr>
+                        <tr><td><label for="sim-contribution-timing">Contribution Timing</label></td><td><select id="sim-contribution-timing"><option value="beginning" selected>Beginning of Period</option><option value="end">End of Period</option></select></td></tr>
+                        <tr><td><label for="sim-interest-rate">Expected Return</label></td><td><input type="text" inputmode="decimal" id="sim-interest-rate" value="12"></td></tr>
+                        <tr><td><label for="sim-rate-type">Return Type</label></td><td><select id="sim-rate-type"><option value="yearly">Annual</option><option value="monthly" selected>Monthly</option></select></td></tr>
+                        <tr><td><label for="sim-interest-type">Interest Type</label></td><td><select id="sim-interest-type"><option value="compounding" selected>Compounding</option><option value="flat">Flat</option></select></td></tr>
+                        <tr style="border-top: 2px solid #333;"><td colspan="2" style="padding-top: 15px; font-weight: bold;">Volatility Parameters</td></tr>
+                        <tr><td><label for="sim-std-dev">Std. Deviation of Return (% Annually)</label></td><td><input type="text" inputmode="decimal" id="sim-std-dev" value="15"></td></tr>
+                        <tr><td><label for="sim-max-drawdown">Max Drawdown Event (%)</label></td><td><input type="text" inputmode="decimal" id="sim-max-drawdown" value="20"></td></tr>
+                        <tr><td><label for="sim-drawdown-prob">Drawdown Probability (% per Month)</label></td><td><input type="text" inputmode="decimal" id="sim-drawdown-prob" value="5"></td></tr>
+                        <tr><td><label for="sim-runs">Number of Simulations</label></td><td><input type="text" inputmode="decimal" id="sim-runs" value="1000"></td></tr>
+                    </tbody>
+                </table>
+                <button type="submit">RUN SIMULATION</button>
+            </form>
+            <div id="simulation-result-section" class="result-section">
+                 <h3>Simulation Results</h3>
+                 <table><tbody>
+                    <tr><td>Average Final Balance</td><td class="result-value" id="sim-avg-balance"></td></tr>
+                    <tr><td>Best Case Scenario (Top 5%)</td><td class="result-value" id="sim-best-case"></td></tr>
+                    <tr><td>Worst Case Scenario (Bottom 5%)</td><td class="result-value" id="sim-worst-case"></td></tr>
+                </tbody></table>
+                <div class="simulation-chart-container"><h3>Final Balance Distribution</h3><canvas id="simulationChart"></canvas></div>
+                <div class="simulation-chart-container"><h3>Sample Simulation Paths</h3><canvas id="simulationHistoryChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let simulationChartInstance = null;
+            let simulationHistoryChartInstance = null;
+
+            const numberFormatter = (num) => {
+                if (isNaN(num)) return '';
+                return parseFloat(num).toLocaleString('en-US');
+            };
+
+            const getNumericValue = (elementId) => {
+                const value = document.getElementById(elementId).value;
+                return parseFloat(value.replace(/,/g, '')) || 0;
+            };
+
+            function formatInputAsCurrency(e) {
+                let input = e.target;
+                let originalValue = input.value;
+                let cursorPosition = input.selectionStart;
+                let rawValue = originalValue.replace(/[^0-9.]/g, '');
+                const parts = rawValue.split('.');
+                if (parts.length > 2) {
+                    rawValue = parts[0] + '.' + parts.slice(1).join('');
+                }
+                let [integerPart, decimalPart] = rawValue.split('.');
+                let formattedInteger = parseInt(integerPart, 10).toLocaleString('en-US');
+                if (isNaN(parseInt(integerPart, 10))) {
+                    formattedInteger = '';
+                }
+                let formattedValue = formattedInteger;
+                if (decimalPart !== undefined) {
+                    formattedValue += '.' + decimalPart;
+                }
+                input.value = formattedValue;
+                let newCursorPosition = cursorPosition + (formattedValue.length - originalValue.length);
+                input.setSelectionRange(newCursorPosition, newCursorPosition);
+            }
+
+            document.querySelectorAll('input[inputmode="decimal"]').forEach(input => {
+                input.addEventListener('input', formatInputAsCurrency);
+            });
+
+            const simForm = document.getElementById('simulation-form');
+            const simRateTypeSelect = document.getElementById('sim-rate-type');
+            const simDurationLabel = document.getElementById('sim-duration-label');
+
+            function updateSimLabels() {
+                const rateType = simRateTypeSelect.value;
+                simDurationLabel.textContent = (rateType === 'yearly') ? 'Investment Duration (Years)' : 'Investment Duration (Months)';
+            }
+            simRateTypeSelect.addEventListener('change', updateSimLabels);
+            updateSimLabels();
+
+            simForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const simParams = getSimParams();
+                if(simParams === null) return;
+                
+                const { finalBalances, samplePaths } = runMonteCarlo(simParams);
+                
+                finalBalances.sort((a, b) => a - b);
+                const sum = finalBalances.reduce((acc, val) => acc + val, 0);
+                const avgBalance = sum / finalBalances.length;
+                const bestCase = finalBalances[Math.floor(finalBalances.length * 0.95)];
+                const worstCase = finalBalances[Math.floor(finalBalances.length * 0.05)];
+
+                document.getElementById('sim-avg-balance').textContent = numberFormatter(avgBalance.toFixed(0));
+                document.getElementById('sim-best-case').textContent = numberFormatter(bestCase.toFixed(0));
+                document.getElementById('sim-worst-case').textContent = numberFormatter(worstCase.toFixed(0));
+
+                renderHistogram(finalBalances);
+                renderHistoricalPathsChart(samplePaths, simParams);
+                document.getElementById('simulation-result-section').classList.add('show');
+            });
+
+            function getSimParams() {
+                const initialCapital = getNumericValue('sim-initial-capital');
+                const investmentDuration = getNumericValue('sim-investment-duration');
+                const additionalContribution = getNumericValue('sim-additional-contribution');
+                const contributionFrequency = document.getElementById('sim-contribution-frequency').value;
+                const contributionTiming = document.getElementById('sim-contribution-timing').value;
+                const interestRate = getNumericValue('sim-interest-rate') / 100;
+                const rateType = document.getElementById('sim-rate-type').value;
+                const interestType = document.getElementById('sim-interest-type').value;
+                const stdDev = getNumericValue('sim-std-dev') / 100;
+                const maxDrawdown = getNumericValue('sim-max-drawdown') / 100;
+                const drawdownProb = getNumericValue('sim-drawdown-prob') / 100;
+                const simRuns = getNumericValue('sim-runs');
+                if ([initialCapital, investmentDuration, additionalContribution, interestRate, stdDev, maxDrawdown, drawdownProb, simRuns].some(isNaN)) {
+                    alert("ERROR: Please fill out all fields in the Simulation tab."); return null;
+                }
+                return { initialCapital, investmentDuration, additionalContribution, contributionFrequency, contributionTiming, interestRate, rateType, interestType, stdDev, maxDrawdown, drawdownProb, simRuns };
+            }
+
+            function runMonteCarlo(simParams) {
+                const { initialCapital, investmentDuration, additionalContribution, contributionFrequency, contributionTiming, interestRate, rateType, interestType, stdDev, maxDrawdown, drawdownProb, simRuns } = simParams;
+                const totalMonths = (rateType === 'yearly') ? investmentDuration * 12 : investmentDuration;
+                const monthlyRate = ((rateType === 'monthly') ? interestRate : interestRate / 12);
+                const monthlyStdDev = stdDev / Math.sqrt(12);
+
+                const finalBalances = [];
+                const samplePaths = [];
+
+                for (let i = 0; i < simRuns; i++) {
+                    let balance = initialCapital;
+                    let totalPrincipal = initialCapital;
+                    let peak = initialCapital;
+                    const currentPath = [initialCapital];
+
+                    for (let m = 0; m < totalMonths; m++) {
+                        let contributionThisMonth = 0;
+                        if (contributionFrequency === 'monthly') {
+                            contributionThisMonth = additionalContribution;
+                        } else if (contributionFrequency === 'yearly' && (m + 1) % 12 === 0) {
+                            contributionThisMonth = additionalContribution;
+                        }
+
+                        if (contributionTiming === 'beginning') {
+                            balance += contributionThisMonth;
+                            totalPrincipal += contributionThisMonth; 
+                        }
+
+                        const u1 = Math.random();
+                        const u2 = Math.random();
+                        const z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+                        const randomReturn = z * monthlyStdDev + monthlyRate;
+                        
+                        const baseForProfit = (interestType === 'compounding') ? balance : totalPrincipal;
+                        const profit = baseForProfit * randomReturn;
+                        balance += profit;
+
+                        if (contributionTiming === 'end') {
+                            balance += contributionThisMonth;
+                            totalPrincipal += contributionThisMonth;
+                        }
+                        
+                        peak = Math.max(peak, balance);
+                        if (Math.random() < drawdownProb) { balance = peak * (1 - maxDrawdown); }
+                        currentPath.push(balance);
+                    }
+                    finalBalances.push(balance);
+                    if (i < 5) { samplePaths.push(currentPath); }
+                }
+                return { finalBalances, samplePaths };
+            }
+
+            function renderLineChart(instance, canvasId, chartData, yCallback) {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                if (instance) { instance.destroy(); }
+                const newInstance = new Chart(ctx, {
+                    type: 'line', data: chartData,
+                    options: { responsive: true, maintainAspectRatio: true, scales: { y: { ticks: { color: '#ddd', callback: yCallback }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }, x: { ticks: { color: '#ddd' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } } }, plugins: { legend: { labels: { color: '#f0f0f0' } } } }
+                });
+                if(canvasId === 'simulationHistoryChart') simulationHistoryChartInstance = newInstance;
+            }
+
+            function renderHistogram(data) {
+                const ctx = document.getElementById('simulationChart').getContext('2d');
+                if (simulationChartInstance) { simulationChartInstance.destroy(); }
+                
+                const min = Math.min(...data);
+                const max = Math.max(...data);
+                const binCount = 30;
+                const binWidth = (max - min) / binCount;
+                const bins = new Array(binCount).fill(0);
+                const labels = [];
+
+                for (let i = 0; i < binCount; i++) {
+                    labels.push(min + i * binWidth);
+                }
+
+                data.forEach(val => {
+                    const binIndex = Math.min(Math.floor((val - min) / binWidth), binCount - 1);
+                    if(binIndex >= 0) bins[binIndex]++;
+                });
+
+                simulationChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: { 
+                        labels: labels,
+                        datasets: [{ label: 'Result Frequency', data: bins, backgroundColor: 'rgba(255, 140, 0, 0.5)', borderColor: '#ff8c00' }] 
+                    },
+                    options: { 
+                        scales: { 
+                            y: { title: { display: true, text: 'Number of Simulations', color: '#ddd' }, ticks: { color: '#ddd' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }, 
+                            x: { 
+                                title: { display: true, text: 'Final Balance', color: '#ddd' }, 
+                                ticks: { 
+                                    color: '#ddd',
+                                    callback: function(value) {
+                                        return this.getLabelForValue(value).toLocaleString('en-US');
+                                    }
+                                }, 
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' } 
+                            } 
+                        }, 
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    title: function(tooltipItems) {
+                                        const index = tooltipItems[0].dataIndex;
+                                        const binStart = labels[index];
+                                        const binEnd = binStart + binWidth;
+                                        return `Balance: ${numberFormatter(binStart.toFixed(0))} - ${numberFormatter(binEnd.toFixed(0))}`;
+                                    }
+                                }
+                            }
+                        } 
+                    }
+                });
+            }
+
+            function renderHistoricalPathsChart(paths, baseParams) {
+                const totalMonths = (baseParams.rateType === 'yearly') ? baseParams.investmentDuration * 12 : baseParams.investmentDuration;
+                const labels = Array.from({length: totalMonths + 1}, (_, i) => `Month ${i}`);
+                const colors = ['#ff8c00', '#00ff7f', '#ff4136', '#7FDBFF', '#f012be'];
+                
+                const datasets = paths.map((path, index) => ({
+                    label: `Simulation ${index + 1}`, data: path, borderColor: colors[index % colors.length], fill: false, borderWidth: 1.5, tension: 0.1, pointRadius: 0
+                }));
+                renderLineChart(simulationHistoryChartInstance, 'simulationHistoryChart', { labels, datasets }, (val) => val.toLocaleString('en-US'));
+            }
+        });
+    </script>
+
+</body>
+</html>

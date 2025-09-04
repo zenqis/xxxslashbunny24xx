@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Central Bank Policy & Yields</title>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: 'Source Code Pro', monospace;
+            background-color: #000;
+            color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .widget-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .title-bar {
+            background-color: #1a1a1a;
+            color: #fff;
+            padding: 10px 12px;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .controls-wrapper select {
+            background-color: #1a1a1a;  
+            border: 1px solid #333;
+            border-radius: 5px;
+            color: #eee;  
+            padding: 6px 10px;  
+            font-size: 12px;
+            font-family: 'Source Code Pro', monospace;  
+            cursor: pointer;
+            outline: none;  
+        }
+        
+        .controls-wrapper select:hover {
+            border-color: #ff8000;  
+        }
+
+        .statement-content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: #0d0d0d;
+            line-height: 1.7;
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        .statement-content-area h3 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: #f0f0f0;
+            font-size: 14px;
+            border-bottom: 1px solid #2a2a2a;
+            padding-bottom: 8px;
+        }
+        
+        .statement-content-area p {
+             margin-top: 0;
+             margin-bottom: 20px;
+             white-space: pre-wrap;
+        }
+
+        /* Aturan CSS untuk <strong> telah dihapus */
+
+        /* Minimalist macOS–Style Scrollbar Styling */
+        .statement-content-area::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .statement-content-area::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .statement-content-area::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+
+        .statement-content-area::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        /* For Firefox */
+        .statement-content-area {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget-container">
+        <div class="title-bar">
+            <span class="title-bar-text">Central Bank Policy & Yields</span>
+            <div class="controls-wrapper">
+                <select id="bank-select" onchange="updateContent(this.value)">
+                    <!-- Options will be populated by script -->
+                </select>
+            </div>
+        </div>
+        <div id="content-area" class="statement-content-area">
+            <p>Loading data...</p>
+        </div>
+    </div>
+
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQYiJV_oUwE0qR24XL8RsaCtR2KEvfkPgxZ_LA9GsVCIqNINbRqG_1Vi4sWpG1MzkSHA/exec';
+        const contentArea = document.getElementById('content-area');
+        const bankSelectElement = document.getElementById('bank-select');
+        
+        // Peta untuk nama lengkap bank sentral
+        const fullBankNames = {
+            FED: "US Federal Reserve (FED)",
+            ECB: "European Central Bank (ECB)",
+            BOJ: "Bank of Japan (BOJ)",
+            BOE: "Bank of England (BOE)",
+            BOC: "Bank of Canada (BOC)",
+            RBA: "Reserve Bank of Australia (RBA)",
+            RBNZ: "Reserve Bank of New Zealand (RBNZ)",
+            SNB: "Swiss National Bank (SNB)"
+        };
+        
+        let cbpyDataStore = {}; // Untuk menyimpan data CBPY yang sudah di-fetch
+
+        /**
+         * Memperbarui konten berdasarkan bank sentral yang dipilih.
+         */
+        window.updateContent = function(bankKey) {
+            if (cbpyDataStore[bankKey]) {
+                const bankData = cbpyDataStore[bankKey];
+                
+                // Mengambil data mentah dari JSON, atau 'N/A' jika tidak tersedia
+                const policyRate = bankData.Policy || 'N/A';
+                const yieldRate = bankData['10y'] || 'N/A';
+                
+                // DIPERBAIKI: Menampilkan data mentah tanpa teks tambahan atau tag <strong>
+                contentArea.innerHTML = `
+                    <h3>Policy Statement</h3>
+                    <p>${policyRate}</p>
+                    
+                    <h3>Yield Condition</h3>
+                    <p>${yieldRate}</p>
+                `;
+            } else {
+                contentArea.innerHTML = `<p>Data not available for the selected bank.</p>`;
+            }
+        }
+
+        /**
+         * Mengambil data dari Google Script dan menginisialisasi widget.
+         */
+        async function initializeWidget() {
+            try {
+                const response = await fetch(SCRIPT_URL);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const jsonData = await response.json();
+                cbpyDataStore = jsonData.CBPY;
+
+                bankSelectElement.innerHTML = '';
+
+                Object.keys(cbpyDataStore).forEach(bankKey => {
+                    const option = document.createElement('option');
+                    option.value = bankKey;
+                    option.textContent = fullBankNames[bankKey] || bankKey; 
+                    bankSelectElement.appendChild(option);
+                });
+                
+                if (Object.keys(cbpyDataStore).length > 0) {
+                    const initialBankKey = Object.keys(cbpyDataStore)[0];
+                    bankSelectElement.value = initialBankKey;
+                    updateContent(initialBankKey);
+                } else {
+                    contentArea.innerHTML = `<p>No central bank data is available.</p>`;
+                }
+
+            } catch (error) {
+                console.error("Failed to initialize widget:", error);
+                contentArea.innerHTML = `<p style="color: #ff5252;">Failed to load data. Please check the connection or script URL.</p>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeWidget);
+
+    </script>
+</body>
+</html>

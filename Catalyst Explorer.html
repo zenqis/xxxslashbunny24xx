@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market News Feed</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* CSS Theme yang Anda berikan */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: 'Source Code Pro', monospace;
+            background-color: #000;
+            color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .table-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden;
+            height: 100vh; /* Memastikan container memenuhi tinggi viewport */
+        }
+
+        .title-bar {
+            background-color: #1a1a1a;
+            color: #fff;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: Bold;
+            text-align: left;
+            border-radius: 0;
+            padding-left: 12px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        }
+        
+        /* BARU: Filter & Search Bar Container */
+        .filter-container {
+            background-color: #0d0d0d;
+            padding: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .filter-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .filter-select, #search-input {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            padding: 6px 8px;
+            color: #fff;
+            border-radius: 5px;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 13px;
+        }
+
+        #search-input {
+            min-width: 200px;
+        }
+
+        /* Kontainer berita */
+        .news-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        /* Setiap item berita */
+        .news-item {
+            background-color: #1a1a1a; /* Latar belakang default untuk Low Impact */
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #222; 
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s ease-in-out, box-shadow 0.3s ease, background-color 0.3s ease;
+        }
+        
+        .news-item.impact-bg-high {
+            background-color: #4c1d1d; 
+            border-color: #8a2a2a; 
+        }
+
+        .news-item.impact-bg-medium {
+            background-color: #573a0a;
+            border-color: #b37400;
+        }
+
+        .news-title {
+            font-size: 16px; 
+            font-weight: 700;
+            color: #eee;
+            margin-bottom: 8px;
+        }
+
+        .news-content {
+            font-size: 14px;
+            color: #ccc;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+        
+        .news-meta {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: auto;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .meta-tags-container {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .news-tag {
+            font-size: 11px;
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .category-tag { background-color: #2980b9; } 
+        .category-country-tag { background-color: #7f8c8d; }
+
+        .status-message {
+            color: #888;
+            text-align: center;
+            padding: 40px;
+            font-style: italic;
+            font-size: 1.2em;
+        }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.15); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.25); }
+        html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) transparent; }
+
+        /* MODIFIKASI: Animasi blink untuk berita baru */
+        @keyframes newItemBlink {
+            50% {
+                background-color: #f0f0f0;
+            }
+        }
+        @keyframes newItemBlinkText {
+            50% {
+                color: #1a1a1a;
+            }
+        }
+        .new-item-blink {
+            animation: newItemBlink 1.5s ease-in-out;
+        }
+        .new-item-blink .news-title,
+        .new-item-blink .news-content,
+        .new-item-blink .news-meta,
+        .new-item-blink .news-meta span,
+        .new-item-blink .news-tag {
+            animation: newItemBlinkText 1.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="table-container">
+        <div class="title-bar">
+            Catalyst Explorer
+        </div>
+        
+        <div class="filter-container">
+            <div class="filter-group">
+                <label for="search-input" class="filter-label">Search Catalyst</label>
+                <input type="text" id="search-input" placeholder="Type to search...">
+            </div>
+            <div class="filter-group">
+                <label for="filter-impact" class="filter-label">Impact Level</label>
+                <select id="filter-impact" class="filter-select">
+                    <option value="all">All Impacts</option>
+                    <option value="High Impact">High</option>
+                    <option value="Medium Impact">Medium</option>
+                    <option value="Low Impact">Low</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="filter-category1" class="filter-label">Country / Region</label>
+                <select id="filter-category1" class="filter-select">
+                    <option value="all">All Regions</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="filter-category2" class="filter-label">Market / Data</label>
+                <select id="filter-category2" class="filter-select">
+                    <option value="all">All Markets</option>
+                </select>
+            </div>
+        </div>
+        
+        <div id="news-container" class="news-container">
+            <!-- Berita akan dimuat di sini oleh JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Element UI
+            const newsContainer = document.getElementById('news-container');
+            const searchInput = document.getElementById('search-input');
+            const impactFilter = document.getElementById('filter-impact');
+            const category1Filter = document.getElementById('filter-category1');
+            const category2Filter = document.getElementById('filter-category2');
+
+            // State & Konfigurasi
+            const API_URL = 'https://script.google.com/macros/s/AKfycbwYr1pQAo2G6_8jAex6FwWO_cut4efeiqAt4jVWAAtvgWC45bXZEWyBMQzTw-KvoteP/exec';
+            const REFRESH_INTERVAL_MS = 60000; // 60 detik
+            const INITIAL_DISPLAY_COUNT = 20;
+            const ARTICLES_PER_SCROLL = 10;
+            
+            let allArticles = [];
+            let displayedHeadlines = new Set();
+            let currentDisplayCount = INITIAL_DISPLAY_COUNT;
+            let areFiltersPopulated = false;
+            let isLoadingMore = false;
+
+
+            function showStatusMessage(message) {
+                newsContainer.innerHTML = `<div class="status-message">${message}</div>`;
+            }
+
+            function populateFilterDropdowns() {
+                if (areFiltersPopulated || allArticles.length === 0) return;
+
+                const categories1 = new Set();
+                const categories2 = new Set();
+                
+                allArticles.forEach(article => {
+                    if (article.category1) categories1.add(article.category1);
+                    if (article.category2) categories2.add(article.category2);
+                });
+
+                const populate = (selectElement, items) => {
+                    const selectedValue = selectElement.value;
+                    while (selectElement.options.length > 1) {
+                        selectElement.remove(1);
+                    }
+                    items.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item;
+                        option.textContent = item;
+                        selectElement.appendChild(option);
+                    });
+                    selectElement.value = selectedValue;
+                };
+
+                populate(category1Filter, [...categories1].sort());
+                populate(category2Filter, [...categories2].sort());
+
+                areFiltersPopulated = true;
+            }
+            
+            // Fungsi utama untuk filter dan render ulang
+            function updateAndRender(newHeadlines = new Set()) {
+                const searchTerm = searchInput.value.toLowerCase();
+                const selectedImpact = impactFilter.value;
+                const selectedCat1 = category1Filter.value;
+                const selectedCat2 = category2Filter.value;
+
+                // 1. Filter semua artikel berdasarkan kriteria
+                const filteredArticles = allArticles.filter(article => {
+                    const headlineText = String(article.headline || '').toLowerCase();
+                    const contentText = String(article.content || '').toLowerCase();
+                    const matchSearch = searchTerm === '' || headlineText.includes(searchTerm) || contentText.includes(searchTerm);
+                    const matchImpact = selectedImpact === 'all' || article.impact === selectedImpact;
+                    const matchCat1 = selectedCat1 === 'all' || article.category1 === selectedCat1;
+                    const matchCat2 = selectedCat2 === 'all' || article.category2 === selectedCat2;
+                    return matchSearch && matchImpact && matchCat1 && matchCat2;
+                });
+
+                // 2. Tentukan artikel mana yang akan ditampilkan
+                let articlesToRender;
+                if (searchTerm !== '') {
+                    // Jika mencari, tampilkan semua hasil pencarian
+                    articlesToRender = filteredArticles;
+                } else {
+                    // Jika tidak mencari, terapkan batas tampilan untuk infinite scroll
+                    articlesToRender = filteredArticles.slice(0, currentDisplayCount);
+                }
+
+                renderNews(articlesToRender, newHeadlines);
+            }
+
+
+            async function fetchNewsData() {
+                try {
+                    const response = await fetch(`${API_URL}?t=${new Date().getTime()}`);
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    
+                    const data = await response.json();
+                    if (typeof data === 'object' && !Array.isArray(data) && data.status === 'error') {
+                        throw new Error(`API Error: ${data.message}`);
+                    }
+                    if (!Array.isArray(data)) {
+                        throw new Error('Format data tidak valid. Respon bukan sebuah array.');
+                    }
+                    
+                    const newHeadlines = new Set();
+                    data.forEach(article => {
+                        if (!displayedHeadlines.has(article.headline)) {
+                            newHeadlines.add(article.headline);
+                        }
+                    });
+
+                    allArticles = data;
+                    displayedHeadlines = new Set(allArticles.map(a => a.headline));
+                    
+                    populateFilterDropdowns();
+                    updateAndRender(newHeadlines);
+
+
+                } catch (error) {
+                    console.error('Gagal mengambil berita:', error);
+                    showStatusMessage(`Terjadi kesalahan saat memuat data. <br><small>${error.message}</small>`);
+                }
+            }
+
+            function renderNews(articles, newHeadlines) {
+                if (articles.length === 0) {
+                    if (searchInput.value !== '') {
+                         showStatusMessage('Tidak ada hasil untuk pencarian Anda.');
+                    } else {
+                         showStatusMessage('Tidak ada berita yang cocok dengan filter Anda.');
+                    }
+                    return;
+                }
+
+                newsContainer.innerHTML = ''; 
+                
+                const countryList = ["United States", "China", "Japan", "Germany", "United Kingdom", "Euro Area", "Canada", "Australia", "Indonesia", "India", "Brazil", "Russia", "South Korea"];
+
+                articles.forEach(article => {
+                    const newsItem = document.createElement('div');
+                    newsItem.className = 'news-item';
+
+                    if (newHeadlines.has(article.headline)) {
+                        newsItem.classList.add('new-item-blink');
+                    }
+                    
+                    if (article.impact === 'High Impact') newsItem.classList.add('impact-bg-high');
+                    else if (article.impact === 'Medium Impact') newsItem.classList.add('impact-bg-medium');
+                    
+                    let categoryTags = '';
+                    const createCategoryTag = (categoryName) => {
+                        if (!categoryName) return '';
+                        const isCountry = countryList.some(country => String(categoryName || '').toLowerCase().includes(country.toLowerCase()));
+                        const tagClass = isCountry ? 'category-country-tag' : 'category-tag';
+                        return `<div class="news-tag ${tagClass}">${categoryName}</div>`;
+                    };
+
+                    categoryTags += createCategoryTag(article.category1);
+                    categoryTags += createCategoryTag(article.category2);
+
+                    const date = new Date(article.timestamp);
+                    const formattedDate = date.toLocaleString('id-ID', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+                    });
+                    
+                    newsItem.innerHTML = `
+                        <div class="news-title">${String(article.headline || '')}</div>
+                        <div class="news-content">${String(article.content || '')}</div>
+                        <div class="news-meta">
+                            <span>${formattedDate}</span>
+                            <div class="meta-tags-container">
+                                ${categoryTags}
+                            </div>
+                        </div>
+                    `;
+                    newsContainer.appendChild(newsItem);
+                });
+            }
+
+            function handleFilterChange() {
+                // Reset display count setiap kali filter diubah
+                currentDisplayCount = INITIAL_DISPLAY_COUNT;
+                newsContainer.scrollTop = 0; // Gulir ke atas
+                updateAndRender();
+            }
+
+            function handleScroll() {
+                if (isLoadingMore || searchInput.value !== '') return;
+
+                const { scrollTop, scrollHeight, clientHeight } = newsContainer;
+                // Trigger 100px sebelum akhir
+                if (scrollTop + clientHeight >= scrollHeight - 100) {
+                    isLoadingMore = true;
+                    currentDisplayCount += ARTICLES_PER_SCROLL;
+                    updateAndRender(); 
+                    // Set timeout singkat untuk mencegah pemanggilan berulang kali
+                    setTimeout(() => { isLoadingMore = false; }, 300);
+                }
+            }
+            
+            function init() {
+                showStatusMessage('Loading Catalyst...');
+                
+                // Tambahkan event listener ke semua filter
+                [searchInput, impactFilter, category1Filter, category2Filter].forEach(el => {
+                    el.addEventListener('input', handleFilterChange);
+                    el.addEventListener('change', handleFilterChange);
+                });
+
+                // Tambahkan event listener untuk scroll
+                newsContainer.addEventListener('scroll', handleScroll);
+                
+                fetchNewsData(); // Ambil data pertama kali
+                setInterval(fetchNewsData, REFRESH_INTERVAL_MS); // Set interval untuk refresh
+            }
+
+            init();
+        });
+    </script>
+
+</body>
+</html>

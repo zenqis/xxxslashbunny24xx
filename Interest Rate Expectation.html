@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Financial Charts - 90 Days</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f0f0f0;
+            font-family: 'Source Code Pro', monospace;
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* Prevent scrollbars at the highest level */
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100%; /* Ensure body takes full height */
+        }
+
+        .chart-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #000;
+            border: 1px solid #222;
+            border-radius: 0;
+            overflow: hidden; /* Prevent scrollbars within the main chart container */
+            min-height: 0; /* Allow shrinking */
+        }
+
+        .chart-title-bar {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            background-color: #1a1a1a;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #222;
+            padding-left: 12px;
+            flex-shrink: 0;
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 16px;
+            gap: 4px; 
+            box-sizing: border-box;
+            overflow: hidden; /* Prevent scrollbars here, content should adapt or be hidden */
+            min-height: 0; /* Allow shrinking */
+        }
+
+        .controls-wrapper {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            padding-bottom: 4px; 
+            flex-shrink: 0;
+        }
+
+        .controls-wrapper label {
+            margin-right: 10px;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .controls-wrapper select {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 5px;
+            color: #eee;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-family: 'Source Code Pro', monospace;
+            cursor: pointer;
+            outline: none;
+        }
+        
+        .controls-wrapper select:hover {
+            border-color: #ff8000;
+        }
+
+        .canvas-wrapper {
+            flex: 1; 
+            position: relative;
+            /* min-height: 150px; */ /* Removed or significantly reduced to allow more shrinking */
+            display: flex; 
+            flex-direction: column;
+            overflow: hidden; /* Ensure canvas doesn't cause overflow here */
+        }
+
+        canvas { /* General canvas styling for responsiveness */
+            max-width: 100%;
+            max-height: 100%;
+            display: block; 
+        }
+        
+        .chart-separator {
+            border: 0;
+            height: 1px;
+            background-color: #333; 
+            margin: 15px 0; 
+            flex-shrink: 0;
+        }
+        /* Scrollbar styling removed */
+    </style>
+</head>
+<body>
+<div class="chart-container">
+    <div class="chart-title-bar">Interest Rate Expectation</div>
+    <div class="content-wrapper">
+        <div class="controls-wrapper">
+            <label for="country-select">Select Country:</label>
+            <select id="country-select" onchange="updateCharts(this.value)">
+                </select>
+        </div>
+        
+        <div class="canvas-wrapper" id="chart-a-wrapper">
+            <canvas id="chartA"></canvas>
+        </div>
+        
+        <hr class="chart-separator">
+        
+        <div class="canvas-wrapper" id="chart-b-wrapper">
+            <canvas id="chartB"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ctxA = document.getElementById('chartA').getContext('2d');
+    const ctxB = document.getElementById('chartB').getContext('2d');
+
+    const NUM_DAYS = 90;
+    const timePeriods = Array.from({ length: NUM_DAYS }, (_, i) => `D-${NUM_DAYS - i}`); 
+
+    function generateInterestRateData(baseRate, numDays) {
+        const data = [];
+        let currentRate = baseRate;
+        let daysSinceLastChange = 0;
+        let changeInterval = Math.floor(Math.random() * 8) + 14; 
+
+        for (let i = 0; i < numDays; i++) {
+            data.push(currentRate);
+            daysSinceLastChange++;
+            if (daysSinceLastChange >= changeInterval) {
+                currentRate += (Math.random() - 0.5) * 0.25; 
+                currentRate = Math.max(0, currentRate); 
+                daysSinceLastChange = 0;
+                changeInterval = Math.floor(Math.random() * 8) + 14;
+            }
+        }
+        return data;
+    }
+
+    function generateBondYieldData(baseYield, interestRateData, numDays) {
+        const data = [];
+        let currentYield = baseYield;
+        for (let i = 0; i < numDays; i++) {
+            let dailyChange = (Math.random() - 0.5) * 0.15; 
+            currentYield += dailyChange;
+
+            if (i > 0 && i % 15 === 0) { 
+                if (Math.random() < 0.4) { 
+                    currentYield = interestRateData[i] - Math.random() * 0.5;
+                } else if (Math.random() < 0.7) { 
+                     currentYield = interestRateData[i] + Math.random() * 0.75;
+                }
+            }
+            const diffFromInterest = currentYield - interestRateData[i];
+            if (Math.abs(diffFromInterest) > 2.0) { 
+                 currentYield = interestRateData[i] + Math.sign(diffFromInterest) * (Math.random() * 0.5 + 0.2);
+            }
+            
+            currentYield = Math.max(interestRateData[i] - 1.0, currentYield); 
+            currentYield = Math.min(interestRateData[i] + 1.5, currentYield); 
+            data.push(parseFloat(currentYield.toFixed(2)));
+        }
+        return data;
+    }
+    
+    const countryFinancialData = {};
+    const countries = [
+        { code: 'US', name: 'US', baseIR: 1.50, baseBY: 1.70 },
+        { code: 'EU', name: 'EU', baseIR: 0.05, baseBY: 0.20 },
+        { code: 'JP', name: 'JP', baseIR: -0.10, baseBY: 0.05 },
+        { code: 'ID', name: 'ID', baseIR: 5.25, baseBY: 6.50 },
+        { code: 'GB', name: 'GB', baseIR: 0.75, baseBY: 0.95 },
+    ];
+
+    countries.forEach(country => {
+        const irData = generateInterestRateData(country.baseIR, NUM_DAYS);
+        countryFinancialData[country.code] = {
+            name: country.name,
+            interestRate: irData,
+            shortTermBondYield: generateBondYieldData(country.baseBY, irData, NUM_DAYS)
+        };
+    });
+
+    const initialCountry = 'US';
+
+    function calculateSpreadAndColors(interestRates, bondYields) {
+        const spread = [];
+        const barColors = [];
+        const positiveColor = '#00b579';
+        const negativeColor = '#b5003c';
+
+        for (let i = 0; i < interestRates.length; i++) {
+            const diff = parseFloat((bondYields[i] - interestRates[i]).toFixed(2));
+            spread.push(diff);
+            barColors.push(diff >= 0 ? positiveColor : negativeColor);
+        }
+        return { spread, barColors };
+    }
+
+    const initialData = countryFinancialData[initialCountry];
+    const initialSpreadData = calculateSpreadAndColors(initialData.interestRate, initialData.shortTermBondYield);
+
+    const commonChartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            x: {
+                title: { display: true, text: 'Period (Days Ago)', color: '#ccc', font: { family: "'Source Code Pro', monospace"} },
+                grid: { color: '#2a2a2a', borderColor: '#2a2a2a' },
+                ticks: { 
+                    color: '#e1e1e1', 
+                    font: { family: "'Source Code Pro', monospace"},
+                    autoSkip: true, // Allows Chart.js to skip labels if too crowded
+                    maxTicksLimit: 10 // Adjust for 90 days, can be lower for very small sizes
+                }
+            },
+            y: {
+                grid: { color: '#2a2a2a', borderColor: '#2a2a2a' },
+                ticks: { 
+                    color: '#e1e1e1',
+                    font: { family: "'Source Code Pro', monospace"},
+                    callback: value => value.toFixed(2) + '%',
+                    autoSkip: true,
+                    maxTicksLimit: 6 // Limit y-axis ticks for small sizes
+                }
+            }
+        },
+        plugins: {
+            tooltip: {
+                backgroundColor: 'rgba(0,0,0,0.85)',
+                titleFont: { family: "'Source Code Pro', monospace", size: 13 },
+                bodyFont: { family: "'Source Code Pro', monospace", size: 12 },
+                padding: 10,
+                cornerRadius: 3,
+                callbacks: {
+                    label: context => `${context.dataset.label || ''}: ${context.parsed.y.toFixed(2)}%`
+                }
+            }
+        }
+    };
+
+    const configA = {
+        type: 'line',
+        data: {
+            labels: timePeriods,
+            datasets: [
+                {
+                    label: `Interest Rate (${initialData.name})`,
+                    data: initialData.interestRate,
+                    borderColor: '#ff8000', 
+                    backgroundColor: 'rgba(255, 128, 0, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    borderWidth: 1.5,
+                    pointRadius: 0, 
+                    pointHoverRadius: 4
+                },
+                {
+                    label: `Short Term Bond Yield (${initialData.name})`,
+                    data: initialData.shortTermBondYield,
+                    borderColor: '#00aeff', 
+                    backgroundColor: 'rgba(0, 174, 255, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
+                }
+            ]
+        },
+        options: {
+            ...commonChartOptions,
+            scales: {
+                ...commonChartOptions.scales,
+                y: {
+                    ...commonChartOptions.scales.y,
+                    title: { display: true, text: 'Rate / Yield (%)', color: '#ccc', font: { family: "'Source Code Pro', monospace"} },
+                }
+            },
+            plugins: {
+                ...commonChartOptions.plugins,
+                legend: { 
+                    display: true, 
+                    position: 'top', 
+                    align: 'start', 
+                    labels: { 
+                        color: '#e1e1e1', 
+                        font: { family: "'Source Code Pro', monospace", size: 11 },
+                        padding: 15, 
+                        boxWidth: 12, 
+                        boxHeight: 10,
+                        usePointStyle: true, 
+                        pointStyle: 'rectRounded' 
+                    }
+                },
+            }
+        }
+    };
+
+    const configB = {
+        type: 'bar',
+        data: {
+            labels: timePeriods,
+            datasets: [{
+                label: `Spread (${initialData.name})`,
+                data: initialSpreadData.spread,
+                backgroundColor: initialSpreadData.barColors,
+                borderWidth: 0 
+            }]
+        },
+        options: {
+            ...commonChartOptions,
+            scales: {
+                 ...commonChartOptions.scales,
+                y: {
+                    ...commonChartOptions.scales.y,
+                    title: { display: true, text: 'Implied Rate (%)', color: '#ccc', font: { family: "'Source Code Pro', monospace"} },
+                }
+            },
+            plugins: {
+                ...commonChartOptions.plugins,
+                legend: { display: false }, 
+                tooltip: { 
+                     ...commonChartOptions.plugins.tooltip,
+                    callbacks: { 
+                        label: context => `Spread: ${context.parsed.y.toFixed(2)}%`
+                    }
+                }
+            }
+        }
+    };
+
+    const chartA = new Chart(ctxA, configA);
+    const chartB = new Chart(ctxB, configB);
+
+    function updateCharts(countryCode) {
+        const selectedData = countryFinancialData[countryCode];
+        if (selectedData) {
+            const spreadData = calculateSpreadAndColors(selectedData.interestRate, selectedData.shortTermBondYield);
+
+            chartA.data.datasets[0].data = selectedData.interestRate;
+            chartA.data.datasets[0].label = `Interest Rate (${selectedData.name})`;
+            chartA.data.datasets[1].data = selectedData.shortTermBondYield;
+            chartA.data.datasets[1].label = `Short Term Bond Yield (${selectedData.name})`;
+            chartA.update();
+
+            chartB.data.datasets[0].data = spreadData.spread;
+            chartB.data.datasets[0].backgroundColor = spreadData.barColors;
+            chartB.data.datasets[0].label = `Spread (${selectedData.name})`;
+            chartB.update();
+        }
+    }
+
+    const countrySelect = document.getElementById('country-select');
+    Object.keys(countryFinancialData).forEach(countryCode => {
+        const option = document.createElement('option');
+        option.value = countryCode;
+        option.textContent = countryFinancialData[countryCode].name;
+        if (countryCode === initialCountry) {
+            option.selected = true;
+        }
+        countrySelect.appendChild(option);
+    });
+</script>
+</body>
+</html>

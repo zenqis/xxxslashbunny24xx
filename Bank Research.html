@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Research PDF Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* CSS Utama */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: 'Source Code Pro', monospace;
+            background-color: #000;
+            color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+            overflow: hidden; /* Mencegah scroll di body */
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative; /* Diperlukan untuk panel absolut di mobile */
+        }
+        
+        .file-list-panel {
+            width: 35%; /* Lebar awal di desktop */
+            min-width: 280px; 
+            display: flex;
+            flex-direction: column;
+            background-color: #000;
+            transition: width 0.3s ease, min-width 0.3s ease, transform 0.3s ease;
+            position: relative;
+            z-index: 5;
+        }
+
+        .file-list-panel.collapsed {
+            width: 50px; 
+            min-width: 50px;
+        }
+        
+        .file-list-panel.collapsed > *:not(.title-bar) {
+            display: none;
+        }
+        
+        .file-list-panel.collapsed #panel-title {
+            display: none;
+        }
+
+        .title-bar {
+            background-color: #1a1a1a;
+            color: #fff;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: left;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #panel-toggle-btn {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #fff;
+            cursor: pointer;
+            border-radius: 5px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s, transform 0.3s ease;
+        }
+
+        #panel-toggle-btn:hover {
+            background: #3a3a3a;
+        }
+        
+        #panel-toggle-btn svg {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.3s ease;
+        }
+
+        .file-list-panel.collapsed #panel-toggle-btn svg {
+            transform: rotate(180deg);
+        }
+
+        .pdf-viewer-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0; /* Memungkinkan panel untuk menyusut */
+        }
+        
+        .view-switcher {
+            display: flex;
+            padding: 10px;
+            gap: 10px;
+            background-color: #0a0a0a;
+            border-bottom: 1px solid #222;
+        }
+
+        .view-button {
+            flex: 1;
+            padding: 8px;
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            color: #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 13px;
+            text-align: center;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .view-button:hover {
+            background-color: #3a3a3a;
+            color: #fff;
+        }
+
+        .view-button.active {
+            background-color: #00509e;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .filter-container {
+            padding: 10px;
+            background-color: #0a0a0a;
+            border-bottom: 1px solid #222;
+        }
+        
+        #bank-filter {
+            width: 100%;
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            padding: 8px;
+            color: #fff;
+            border-radius: 5px;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 13px;
+        }
+
+        .file-list-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .list-group-header {
+            font-size: 14px;
+            font-weight: bold;
+            color: #00aaff;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .file-item {
+            background-color: #1a1a1a;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #222;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+            overflow: hidden;
+        }
+
+        .file-item:hover {
+            background-color: #2a2a2a;
+            border-color: #444;
+        }
+        
+        .file-item.active {
+            background-color: #00509e;
+            border-color: #007bff;
+        }
+
+        .file-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: #eee;
+            margin-bottom: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .file-meta {
+            font-size: 11px;
+            color: #aaa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .file-source {
+            background-color: #333;
+            color: #fff;
+            padding: 2px 5px;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+        
+        .file-date {
+            font-style: italic;
+        }
+
+        .pdf-viewer-iframe {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        #viewer-placeholder {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            color: #888;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading-message, .error-message {
+            color: #888;
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.15); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.25); }
+        html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) transparent; }
+
+        /* -- START: Perbaikan dan Peningkatan untuk Mobile -- */
+        @media (max-width: 768px) {
+            /* Saat panel terbuka, buat menjadi overlay */
+            .file-list-panel:not(.collapsed) {
+                position: absolute;
+                height: 100%;
+                z-index: 10;
+                width: 85%;
+                max-width: 400px;
+                box-shadow: 5px 0px 15px rgba(0,0,0,0.5);
+            }
+            
+            /* Susun tombol di view-switcher secara vertikal */
+            .file-list-panel:not(.collapsed) .view-switcher {
+                flex-direction: column;
+            }
+        }
+        /* -- END: Perbaikan Mobile -- */
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Panel Kiri untuk Daftar File -->
+        <div class="file-list-panel" id="left-panel">
+            <div class="title-bar">
+                <span id="panel-title">Bank Research</span>
+                <button id="panel-toggle-btn" title="Toggle Panel">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+            </div>
+            <div class="view-switcher">
+                <div id="btn-by-source" class="view-button active">By Provider</div>
+                <div id="btn-by-time" class="view-button">By Upload Time</div>
+            </div>
+            <div id="filter-container" class="filter-container">
+                <select id="bank-filter"></select>
+            </div>
+            <div class="file-list-container" id="file-list">
+                <!-- File items akan ditambahkan di sini oleh JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Panel Kanan untuk Penampil PDF -->
+        <div class="pdf-viewer-panel" id="right-panel">
+             <div class="title-bar" id="viewer-title">PDF Viewer</div>
+             <div id="viewer-placeholder">
+                 <p>Select a file from the list to view it here.</p>
+             </div>
+             <iframe id="pdf-viewer-iframe" class="pdf-viewer-iframe" style="display: none;"></iframe>
+        </div>
+    </div>
+
+    <script>
+        // Definisi semua variabel elemen DOM
+        const fileListContainer = document.getElementById('file-list');
+        const pdfViewerIframe = document.getElementById('pdf-viewer-iframe');
+        const viewerPlaceholder = document.getElementById('viewer-placeholder');
+        const viewerTitle = document.getElementById('viewer-title');
+        const btnBySource = document.getElementById('btn-by-source');
+        const btnByTime = document.getElementById('btn-by-time');
+        const bankFilter = document.getElementById('bank-filter');
+        const filterContainer = document.getElementById('filter-container');
+        
+        let activeFileElement = null;
+        let allFiles = [];
+
+        // Fungsi untuk merender daftar file berdasarkan provider/sumber
+        function renderBySource() {
+            fileListContainer.innerHTML = '';
+            const selectedBank = bankFilter.value;
+            const filesToRender = selectedBank === 'all' ? allFiles : allFiles.filter(file => file.source === selectedBank);
+            const groupedBySource = filesToRender.reduce((acc, file) => {
+                (acc[file.source] = acc[file.source] || []).push(file);
+                return acc;
+            }, {});
+
+            Object.keys(groupedBySource).sort().forEach(source => {
+                if (selectedBank === 'all') {
+                    const header = document.createElement('div');
+                    header.className = 'list-group-header';
+                    header.textContent = source;
+                    fileListContainer.appendChild(header);
+                }
+                groupedBySource[source]
+                    .sort((a, b) => new Date(b.created) - new Date(a.created))
+                    .forEach(file => createFileElement(file));
+            });
+        }
+        
+        // Fungsi untuk merender daftar file berdasarkan waktu upload
+        function renderByTime() {
+            fileListContainer.innerHTML = '';
+            const sortedByTime = [...allFiles].sort((a, b) => new Date(b.created) - new Date(a.created));
+            sortedByTime.forEach(file => createFileElement(file));
+        }
+        
+        // Fungsi untuk membuat elemen HTML untuk setiap file
+        function createFileElement(file) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            const fileDateTime = new Date(file.created).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const cleanFileName = file.name.replace(/\.pdf$/i, '');
+
+            fileItem.innerHTML = `
+                <div class="file-name" title="${cleanFileName}">${cleanFileName}</div>
+                <div class="file-meta">
+                    <span class="file-source">${file.source}</span>
+                    <span class="file-date">${fileDateTime}</span>
+                </div>
+            `;
+            
+            fileItem.addEventListener('click', () => {
+                loadPdf(file.url, cleanFileName, fileItem);
+            });
+            fileListContainer.appendChild(fileItem);
+        }
+
+        // Fungsi untuk memuat PDF ke dalam iframe
+        function loadPdf(url, fileName, element) {
+            viewerPlaceholder.style.display = 'none';
+            pdfViewerIframe.style.display = 'block';
+            pdfViewerIframe.src = url;
+            viewerTitle.textContent = fileName;
+            if (activeFileElement) {
+                activeFileElement.classList.remove('active');
+            }
+            element.classList.add('active');
+            activeFileElement = element;
+        }
+        
+        // Fungsi untuk mengisi pilihan filter provider
+        function populateBankFilter() {
+            const sources = [...new Set(allFiles.map(file => file.source))].sort();
+            bankFilter.innerHTML = '<option value="all">-- All Provider --</option>';
+            sources.forEach(source => {
+                const option = document.createElement('option');
+                option.value = source;
+                option.textContent = source;
+                bankFilter.appendChild(option);
+            });
+        }
+        
+        // Fungsi untuk mengambil data file dari Google Script
+        async function fetchAndDisplayFiles() {
+            fileListContainer.innerHTML = '<p class="loading-message">Loading files...</p>';
+            const googleScriptUrl = "https://script.google.com/macros/s/AKfycbx1b1s8cdYsLoT90V1KCTbZ5243JjX-4q2AVdE33W7uXltZGGMxzp8t3xt_N4aG93Mq/exec";
+            try {
+                const response = await fetch(googleScriptUrl);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                allFiles = data;
+                populateBankFilter();
+                renderBySource();
+            } catch (error) {
+                console.error('Error fetching file list:', error);
+                fileListContainer.innerHTML = `<p class="error-message">Failed to load files: ${error.message}.</p>`;
+            }
+        }
+
+        // Event listener untuk tombol-tombol view dan filter
+        btnBySource.addEventListener('click', () => {
+            btnByTime.classList.remove('active');
+            btnBySource.classList.add('active');
+            filterContainer.style.display = 'block';
+            renderBySource();
+        });
+
+        btnByTime.addEventListener('click', () => {
+            btnBySource.classList.remove('active');
+            btnByTime.classList.add('active');
+            filterContainer.style.display = 'none';
+            renderByTime();
+        });
+        
+        bankFilter.addEventListener('change', renderBySource);
+
+        // Kode yang dijalankan setelah halaman selesai dimuat
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchAndDisplayFiles();
+
+            // --- START: Logika untuk Tombol Toggle Panel (Disederhanakan) ---
+            const toggleButton = document.getElementById('panel-toggle-btn');
+            const leftPanel = document.getElementById('left-panel');
+
+            const setInitialPanelState = () => {
+                if (window.innerWidth <= 768) {
+                    leftPanel.classList.add('collapsed');
+                } else {
+                    leftPanel.classList.remove('collapsed');
+                }
+            };
+
+            toggleButton.addEventListener('click', () => {
+                leftPanel.classList.toggle('collapsed');
+            });
+
+            // Atur state awal saat memuat dan saat ukuran window berubah
+            setInitialPanelState();
+            window.addEventListener('resize', setInitialPanelState);
+            // --- END: Logika Toggle ---
+        });
+    </script>
+</body>
+</html>
